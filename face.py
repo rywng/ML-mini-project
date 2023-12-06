@@ -1,3 +1,4 @@
+from datetime import date
 import os
 import sys
 
@@ -8,13 +9,15 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 
 EPOCHS = 50
 IMG_WIDTH = 128
 IMG_HEIGHT = 128
 # NUM_CATEGORIES = 43
-NUM_CATEGORIES = 2
+# NUM_CATEGORIES = 2
 TEST_SIZE = 0.4
+BATCH_SIZE = 64
 
 
 def main():
@@ -32,19 +35,56 @@ def main():
                                                         np.array(labels),
                                                         test_size=TEST_SIZE)
 
+    # Convert data to PyTorch tensors and normalize
+    x_train = torch.tensor(x_train).float()
+    y_train = torch.tensor(y_train).float().unsqueeze(1)
+    x_test = torch.tensor(x_test).float()
+    y_test = torch.tensor(y_test).float().unsqueeze(1)
+
+    # Create dataloaders
+    train_dataloader = DataLoader(TensorDataset(x_train, y_train),
+                                  batch_size=BATCH_SIZE)
+    test_dataloader = DataLoader(TensorDataset(x_test, y_test),
+                                 batch_size=BATCH_SIZE)
+
     # Get a compiled neural network
     model = get_model()
 
+    # Define the loss function
+    criterion = nn.BCELoss()
+
+    # Define the optimizer
+    optimizer = optim.Adam(model.parameters())
+
     # Fit model on training data
-    model.fit(x_train, y_train, epochs=EPOCHS)
+    for epoch in range(EPOCHS):
+        for inputs, targets in train_dataloader:
+            print(f"epoch: {epoch}", end="")
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            print(len(outputs))
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            print("loss: {loss}")
 
     # Evaluate neural network performance
-    model.evaluate(x_test, y_test, verbose="2")
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, targets in test_dataloader:
+            outputs = model(inputs)
+            predicted = (outputs > 0.5).float()
+            total += targets.size(0)
+            correct += (predicted == targets).sum().item()
+
+    print(
+        f"Accuracy of the network on the test images: {100 * correct / total}")
 
     # Save model to file
     if len(sys.argv) == 3:
-        filename = sys.argv[2]
-        model.save(filename)
+        filename = f"{date.today()}-{EPOCHS}.pt"
+        torch.save(model.state_dict(), filename)
         print(f"Model saved to {filename}.")
 
 
@@ -109,13 +149,6 @@ def get_model():
     The output layer should have `NUM_CATEGORIES` units, one for each category.
     """
     model = Net()
-
-    # Define the loss function
-    criterion = nn.BCELoss()
-
-    # Define the optimizer
-    optimizer = optim.Adam(model.parameters())
-
     return model
 
 
