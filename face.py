@@ -2,9 +2,12 @@ import os
 import sys
 
 import cv2
-import keras
 import numpy as np
 from sklearn.model_selection import train_test_split
+import torch
+from torch import nn
+import torch.nn.functional as F
+import torch.optim as optim
 
 EPOCHS = 50
 IMG_WIDTH = 128
@@ -55,7 +58,7 @@ def load_data(data_dir):
 
     Return tuple `(images, labels)`. `images` should be a list of all
     of the images in the data directory, where each image is formatted as a
-    numpy ndarray with dimensions IMG_WIDTH x IMG_HEIGHT x 3. `labels` should
+    numpy ndarray with dimensions 3 x IMG_WIDTH x IMG_HEIGHT. `labels` should
     be a list of integer labels, representing the categories for each of the
     corresponding `images`.
     """
@@ -66,13 +69,37 @@ def load_data(data_dir):
         for image in os.listdir(data_path):
             img = cv2.imread(os.path.join(data_path, image))
             res = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
+            # Convert image to PyTorch format (channel, height, width)
+            res = np.transpose(res, (2, 0, 1))
             # Add image
             images.append(res)
             # Add line
-            line_data = int(label_file.readline().split(" ")[0])
+            line_data = int(
+                label_file.readline().split(" ")[0])  # convert labels to int
             labels.append(line_data)
 
     return (images, labels)
+
+
+class Net(nn.Module):
+
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
+        self.fc1 = nn.Linear(64 * 32 * 32, 64)
+        self.fc2 = nn.Linear(64, 1)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = self.pool(F.relu(self.conv3(x)))
+        x = x.view(-1, 64 * 32 * 32)
+        x = F.relu(self.fc1(x))
+        x = torch.sigmoid(self.fc2(x))
+        return x
 
 
 def get_model():
@@ -81,35 +108,14 @@ def get_model():
     `input_shape` of the first layer is `(IMG_WIDTH, IMG_HEIGHT, 3)`.
     The output layer should have `NUM_CATEGORIES` units, one for each category.
     """
-    model = keras.models.Sequential()
-    input_shape = (IMG_WIDTH, IMG_HEIGHT, 3)
+    model = Net()
 
-    model.add(
-        keras.layers.Conv2D(32, (3, 3),
-                            activation="relu",
-                            input_shape=input_shape))
-    model.add(keras.layers.MaxPool2D(2, 2))
-    model.add(keras.layers.Conv2D(64, (3, 3), activation="relu"))
-    model.add(keras.layers.MaxPool2D(2, 2))
-    model.add(keras.layers.Conv2D(64, (3, 3), activation="relu"))
+    # Define the loss function
+    criterion = nn.BCELoss()
 
-    model.add(keras.layers.Flatten())
+    # Define the optimizer
+    optimizer = optim.Adam(model.parameters())
 
-    model.add(keras.layers.Dense(64, activation='relu'))
-    model.add(keras.layers.Dense(1, activation='sigmoid'),
-              )  # binary classification
-    # model.add(
-    #     keras.layers.Dense(NUM_CATEGORIES,
-    #                           activation="softmax",
-    #                           name="output"))
-    # DEBUG
-    # model.summary()
-
-    model.compile(optimizer='adam',
-                  loss='binary_crossentropy',
-                  metrics=['accuracy'])
-
-    model.build(input_shape)
     return model
 
 
