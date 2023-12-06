@@ -1,9 +1,9 @@
-import cv2
-import numpy as np
 import os
 import sys
-import keras
 
+import cv2
+import keras
+import numpy as np
 from sklearn.model_selection import train_test_split
 
 EPOCHS = 50
@@ -96,8 +96,8 @@ def get_model():
     model.add(keras.layers.Flatten())
 
     model.add(keras.layers.Dense(64, activation='relu'))
-    model.add(keras.layers.Dense(
-        1, activation='sigmoid'))  # binary classification
+    model.add(keras.layers.Dense(1, activation='sigmoid'),
+              )  # binary classification
     # model.add(
     #     keras.layers.Dense(NUM_CATEGORIES,
     #                           activation="softmax",
