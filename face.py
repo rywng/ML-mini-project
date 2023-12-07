@@ -1,4 +1,5 @@
 from datetime import date
+from tqdm import tqdm
 import os
 import sys
 
@@ -7,16 +8,13 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
-EPOCHS = 50
-IMG_WIDTH = 128
-IMG_HEIGHT = 128
-# NUM_CATEGORIES = 43
-# NUM_CATEGORIES = 2
-TEST_SIZE = 0.4
+EPOCHS = 100
+IMG_WIDTH = 180
+IMG_HEIGHT = 192
+TEST_SIZE = 0.3
 BATCH_SIZE = 64
 
 
@@ -36,39 +34,53 @@ def main():
                                                         test_size=TEST_SIZE)
 
     # Convert data to PyTorch tensors and normalize
-    x_train = torch.tensor(x_train).float()
-    y_train = torch.tensor(y_train).float().unsqueeze(1)
-    x_test = torch.tensor(x_test).float()
-    y_test = torch.tensor(y_test).float().unsqueeze(1)
+    print(f"Cuda status: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        dev = "cuda"
+    else:
+        dev = "cpu"
+
+    x_train = torch.tensor(x_train).float().to(dev)
+    y_train = torch.tensor(y_train).float().unsqueeze(1).to(dev)
+    x_test = torch.tensor(x_test).float().to(dev)
+    y_test = torch.tensor(y_test).float().unsqueeze(1).to(dev)
 
     # Create dataloaders
     train_dataloader = DataLoader(TensorDataset(x_train, y_train),
-                                  batch_size=BATCH_SIZE)
+                                  batch_size=BATCH_SIZE
+                                 )
     test_dataloader = DataLoader(TensorDataset(x_test, y_test),
-                                 batch_size=BATCH_SIZE)
+                                 batch_size=BATCH_SIZE
+                                 )
 
     # Get a compiled neural network
-    model = get_model()
+    model = get_model().to(dev)
 
     # Define the loss function
     criterion = nn.BCELoss()
 
     # Define the optimizer
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=0.000001)
+
 
     # Fit model on training data
-    for epoch in range(EPOCHS):
-        for inputs, targets in train_dataloader:
-            print(f"epoch: {epoch}", end="")
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            print(len(outputs))
-            loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
-            print("loss: {loss}")
+    with tqdm(range(EPOCHS)) as pbar:
+        model.train()
+        for epoch in range(EPOCHS):
+            pbar.update()
+            running_loss = 0.0
+            for inputs, targets in train_dataloader:
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+            average_loss = running_loss / len(train_dataloader)
+            pbar.set_postfix(epoch=epoch, loss=f"{average_loss:.4f}")
 
     # Evaluate neural network performance
+    model.eval()
     correct = 0
     total = 0
     with torch.no_grad():
@@ -90,17 +102,12 @@ def main():
 
 def load_data(data_dir):
     """
-    Load image data from directory `data_dir`.
-
-    Assume `data_dir` has one directory named after each category, numbered
-    0 through NUM_CATEGORIES - 1. Inside each category directory will be some
-    number of image files.
+    Load image data from directory `data_dir/files`.
+    Load labels from file `data_dir/labels.txt`
 
     Return tuple `(images, labels)`. `images` should be a list of all
-    of the images in the data directory, where each image is formatted as a
-    numpy ndarray with dimensions 3 x IMG_WIDTH x IMG_HEIGHT. `labels` should
-    be a list of integer labels, representing the categories for each of the
-    corresponding `images`.
+    of the images in the data directory `labels` should be a list of 
+    integer labels, representing whether the person in image is smiling
     """
     images = []
     labels = []
@@ -121,24 +128,23 @@ def load_data(data_dir):
     return (images, labels)
 
 
-class Net(nn.Module):
+class SmilingClassifier(nn.Module):
 
     def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
-        self.fc1 = nn.Linear(64 * 32 * 32, 64)
-        self.fc2 = nn.Linear(64, 1)
+        super(SmilingClassifier, self).__init__()
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=5, stride=1, padding=2)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=2)
+        self.fc1 = nn.Linear(64 * 45 * 48, 512)
+        self.fc2 = nn.Linear(512, 1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-        x = x.view(-1, 64 * 32 * 32)
-        x = F.relu(self.fc1(x))
-        x = torch.sigmoid(self.fc2(x))
+        x = self.pool(torch.relu(self.conv1(x)))
+        x = self.pool(torch.relu(self.conv2(x)))
+        x = x.view(-1, 64 * 45 * 48)
+        x = torch.relu(self.fc1(x))
+        x = self.sigmoid(self.fc2(x))
         return x
 
 
@@ -148,7 +154,7 @@ def get_model():
     `input_shape` of the first layer is `(IMG_WIDTH, IMG_HEIGHT, 3)`.
     The output layer should have `NUM_CATEGORIES` units, one for each category.
     """
-    model = Net()
+    model = SmilingClassifier()
     return model
 
 
