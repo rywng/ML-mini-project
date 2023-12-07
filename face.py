@@ -31,7 +31,7 @@ def main():
     images, labels = load_data(sys.argv[1])
 
     # Split data into training and testing sets
-    # labels = keras.utils.to_categorical(labels)
+    # TODO: don't use scikit, use torch, and keep the tensor format
     x_train, x_test, y_train, y_test = train_test_split(np.array(images),
                                                         np.array(labels),
                                                         test_size=TEST_SIZE)
@@ -76,7 +76,7 @@ def main():
     criterion = nn.BCELoss()
 
     # Define the optimizer
-    optimizer = optim.Adam(model.parameters(), lr=0.0000001)
+    optimizer = optim.Adam(model.parameters(), lr=0.000001)
 
     # Fit model on training data
     with tqdm(range(EPOCHS)) as pbar:
@@ -106,6 +106,19 @@ def main():
                              loss=f"{average_loss:.4f}",
                              val_loss=f'{average_val_loss:.4f}')
 
+    # Evaluate neural network performance
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, targets in test_dataloader:
+            outputs = model(inputs)
+            predicted = (outputs > 0.5).float()
+            total += targets.size(0)
+            correct += (predicted == targets).sum().item()
+
+    print(
+        f"Accuracy of the network on the test images: {100 * correct / total}")
+
     # Save model to file
     if len(sys.argv) == 3:
         filename = f"{date.today()}-{EPOCHS}.pt"
@@ -133,6 +146,7 @@ def load_data(data_dir):
             img = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
             transform = transforms.ToTensor()
             res = transform(img)
+            res = np.array(res)
             # Add image
             images.append(res)
             # Add line
