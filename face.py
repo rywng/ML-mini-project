@@ -1,7 +1,10 @@
 from datetime import date
+import torchvision
+from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
 import os
 import sys
+import torchvision.transforms as transforms
 
 import cv2
 import numpy as np
@@ -11,7 +14,7 @@ from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
-EPOCHS = 100
+EPOCHS = 60
 IMG_WIDTH = 180
 IMG_HEIGHT = 192
 TEST_SIZE = 0.3
@@ -34,7 +37,7 @@ def main():
                                                         test_size=TEST_SIZE)
 
     # Convert data to PyTorch tensors and normalize
-    print(f"Cuda status: {torch.cuda.is_available()}")
+    print(f"Using cuda: {torch.cuda.is_available()}")
     if torch.cuda.is_available():
         dev = "cuda"
     else:
@@ -46,12 +49,25 @@ def main():
     y_test = torch.tensor(y_test).float().unsqueeze(1).to(dev)
 
     # Create dataloaders
-    train_dataloader = DataLoader(TensorDataset(x_train, y_train),
-                                  batch_size=BATCH_SIZE
-                                 )
+    train_dataloader = DataLoader(
+        TensorDataset(x_train, y_train),
+        # shuffle=True,
+        batch_size=BATCH_SIZE)
     test_dataloader = DataLoader(TensorDataset(x_test, y_test),
-                                 batch_size=BATCH_SIZE
-                                 )
+                                 batch_size=BATCH_SIZE)
+
+    writer = SummaryWriter('runs/face-smile')
+
+    # sample some data to writer
+    # get some random training images
+    dataiter = iter(train_dataloader)
+    images, labels = next(dataiter)
+
+    # create grid of images
+    img_grid = torchvision.utils.make_grid(images, normalize=True)
+
+    # write to tensorboard
+    writer.add_image('one_batch', img_grid)
 
     # Get a compiled neural network
     model = get_model().to(dev)
@@ -60,13 +76,12 @@ def main():
     criterion = nn.BCELoss()
 
     # Define the optimizer
-    optimizer = optim.Adam(model.parameters(), lr=0.000001)
-
+    optimizer = optim.Adam(model.parameters(), lr=0.0000001)
 
     # Fit model on training data
     with tqdm(range(EPOCHS)) as pbar:
-        model.train()
         for epoch in range(EPOCHS):
+            model.train()
             pbar.update()
             running_loss = 0.0
             for inputs, targets in train_dataloader:
@@ -77,21 +92,19 @@ def main():
                 optimizer.step()
                 running_loss += loss.item()
             average_loss = running_loss / len(train_dataloader)
-            pbar.set_postfix(epoch=epoch, loss=f"{average_loss:.4f}")
 
-    # Evaluate neural network performance
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for inputs, targets in test_dataloader:
-            outputs = model(inputs)
-            predicted = (outputs > 0.5).float()
-            total += targets.size(0)
-            correct += (predicted == targets).sum().item()
-
-    print(
-        f"Accuracy of the network on the test images: {100 * correct / total}")
+            # Evaluate neural network performance
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for inputs, targets in test_dataloader:
+                    outputs = model(inputs)
+                    loss = criterion(outputs, targets)
+                    val_loss += loss.item()
+            average_val_loss = val_loss / len(test_dataloader)
+            pbar.set_postfix(epoch=epoch,
+                             loss=f"{average_loss:.4f}",
+                             val_loss=f'{average_val_loss:.4f}')
 
     # Save model to file
     if len(sys.argv) == 3:
@@ -115,9 +128,11 @@ def load_data(data_dir):
     with open(os.path.join(data_dir, "labels.txt")) as label_file:
         for image in os.listdir(data_path):
             img = cv2.imread(os.path.join(data_path, image))
-            res = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
-            # Convert image to PyTorch format (channel, height, width)
-            res = np.transpose(res, (2, 0, 1))
+
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
+            transform = transforms.ToTensor()
+            res = transform(img)
             # Add image
             images.append(res)
             # Add line
