@@ -1,10 +1,10 @@
-# imports
 import matplotlib.pyplot as plt
 import numpy as np
 from torch.functional import Tensor
+from torch.utils.data import DataLoader
 
-# datasets
-# helper functions
+
+FIGSIZE = (12, 12)
 
 
 def matplotlib_imshow(img, one_channel=False):
@@ -32,7 +32,7 @@ def plot_classes_preds(net, images, labels):
     labels = labels[:RANGE]
     probs = net(images)
     # plot the images in the batch, along with predicted and true labels
-    fig = plt.figure(figsize=(12, 48))
+    fig = plt.figure(figsize=FIGSIZE)
     for idx in np.arange(RANGE):
         ax = fig.add_subplot(2, RANGE // 2, idx + 1, xticks=[], yticks=[])
         matplotlib_imshow(images[idx], one_channel=False)
@@ -40,6 +40,20 @@ def plot_classes_preds(net, images, labels):
             f"{float(probs[idx] * 100.0):.2f}%, {float(labels[idx] * 100):.2f}%\n"
             .format(color=("green" if abs(probs[idx] -
                                           labels[idx]) < 0.4 else "red")))
-    # fig.show()
-    # __import__('pdb').set_trace()
+    return fig
+
+
+def plot_random_batch(train_dataloader: DataLoader, batch_size: int):
+    # sample some data to writer
+    # get some random training images
+    dataiter = iter(train_dataloader)
+    image_samples, label_samples = next(dataiter)
+
+    # write to tensorboard
+    fig = plt.figure(figsize=FIGSIZE)
+    for i in np.arange(batch_size):
+        ax = fig.add_subplot(8, batch_size // 8, i + 1, xticks=[], yticks=[])
+        matplotlib_imshow(image_samples[i])
+        ax.set_title(str(int(label_samples[i])))
+
     return fig

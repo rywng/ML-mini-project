@@ -1,8 +1,6 @@
 from datetime import date
-import os
 import sys
 
-import cv2
 import numpy as np
 from sklearn.model_selection import train_test_split
 import torch
@@ -10,14 +8,14 @@ from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard.writer import SummaryWriter
-import torchvision
-import torchvision.transforms as transforms
 from tqdm import tqdm
 
-from plotting import plot_classes_preds
+from logger_utils import plot_classes_preds, plot_random_batch
 from models import SmilingClassifier
+from preprocessing import load_data
 
 TEST_SIZE = 0.3
+# Don't change this!
 BATCH_SIZE = 64
 
 
@@ -58,17 +56,8 @@ def main():
 
     writer = SummaryWriter('runs/face-smile')
 
-    # sample some data to writer
-    # get some random training images
-    dataiter = iter(train_dataloader)
-    image_samples, label_samples = next(dataiter)
-
-    # create grid of images
-    img_grid = torchvision.utils.make_grid(image_samples, normalize=True)
-
-    # write to tensorboard
-    writer.add_image('one_batch', img_grid)
-
+    writer.add_figure("One batch",
+                      plot_random_batch(train_dataloader, BATCH_SIZE))
     # Train model
     model = train_model(SmilingClassifier(), train_dataloader, test_dataloader,
                         300, dev, writer)
@@ -81,41 +70,6 @@ def main():
         filename = f"{date.today()}.pt"
         torch.save(model.state_dict(), filename)
         print(f"Model saved to {filename}.")
-
-
-def load_data(data_dir):
-    """
-    Load image data from directory `data_dir/files`.
-    Load labels from file `data_dir/labels.txt`
-
-    Return tuple `(images, labels)`. `images` should be a list of all
-    of the images in the data directory `labels` should be a list of 
-    integer labels, representing whether the person in image is smiling
-    """
-    #TODO: make sure the order is correct
-    IMG_WIDTH = 180
-    IMG_HEIGHT = 192
-
-    images = []
-    labels = []
-    data_path = os.path.join(data_dir, "files")
-    with open(os.path.join(data_dir, "labels.txt")) as label_file:
-        for image in os.listdir(data_path):
-            img = cv2.imread(os.path.join(data_path, image))
-
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            img = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
-            transform = transforms.ToTensor()
-            res = transform(img)
-            res = np.array(res)
-            # Add image
-            images.append(res)
-            # Add line
-            line_data = int(
-                label_file.readline().split(" ")[0])  # convert labels to int
-            labels.append(line_data)
-
-    return (images, labels)
 
 
 def train_model(model: nn.Module, train_dataloader: DataLoader,
