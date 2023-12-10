@@ -2,6 +2,9 @@ import os
 
 import cv2
 import numpy as np
+from sklearn.model_selection import train_test_split
+import torch
+from torch.utils.data import DataLoader, TensorDataset
 from torchvision.transforms import transforms, v2
 
 IMG_WIDTH = 180
@@ -61,3 +64,29 @@ def load_data(data_dir):
                 labels.append(label)
 
     return (images, labels)
+
+
+def get_dataloaders(data_dir, dev, batch_size=64, test_size=0.3):
+    # Get image arrays and labels for all image files
+    image_samples, label_samples = load_data(data_dir)
+
+    # Split data into training and testing sets
+    # TODO: don't use scikit, use torch, and keep the tensor format
+    x_train, x_test, y_train, y_test = train_test_split(
+        np.array(image_samples), np.array(label_samples), test_size=test_size)
+
+    # Convert data to PyTorch tensors and normalize
+    print(f"Using cuda: {torch.cuda.is_available()}")
+    x_train = torch.tensor(x_train).float().to(dev)
+    y_train = torch.tensor(y_train).float().unsqueeze(1).to(dev)
+    x_test = torch.tensor(x_test).float().to(dev)
+    y_test = torch.tensor(y_test).float().unsqueeze(1).to(dev)
+
+    # Create dataloaders
+    train_dataloader = DataLoader(
+        TensorDataset(x_train, y_train),
+        # shuffle=True,
+        batch_size=batch_size)
+    test_dataloader = DataLoader(TensorDataset(x_test, y_test),
+                                 batch_size=batch_size)
+    return train_dataloader, test_dataloader

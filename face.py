@@ -1,58 +1,28 @@
 from datetime import date
-import sys
+import argparse
 
-import numpy as np
-from sklearn.model_selection import train_test_split
 import torch
-from torch import nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard.writer import SummaryWriter
-from tqdm import tqdm
 
-from logger_utils import plot_classes_preds, plot_random_batch
-from models import SmilingClassifier
-from preprocessing import load_data
+from logger_utils import plot_random_batch
+from models import SmilingClassifier, train_model
+from preprocessing import get_dataloaders
 
 TEST_SIZE = 0.3
 # Don't change this!
 BATCH_SIZE = 64
 
 
-def main():
-
+def main(args):
     # Check command-line arguments
-    # TODO: argparse
-    if len(sys.argv) not in [2, 3]:
-        sys.exit("Usage: python face.py data_directory [model.h5]")
 
-    # Get image arrays and labels for all image files
-    image_samples, label_samples = load_data(sys.argv[1])
-
-    # Split data into training and testing sets
-    # TODO: don't use scikit, use torch, and keep the tensor format
-    x_train, x_test, y_train, y_test = train_test_split(
-        np.array(image_samples), np.array(label_samples), test_size=TEST_SIZE)
-
-    # Convert data to PyTorch tensors and normalize
-    print(f"Using cuda: {torch.cuda.is_available()}")
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and not args["no-cuda"]:
         dev = "cuda"
     else:
         dev = "cpu"
 
-    x_train = torch.tensor(x_train).float().to(dev)
-    y_train = torch.tensor(y_train).float().unsqueeze(1).to(dev)
-    x_test = torch.tensor(x_test).float().to(dev)
-    y_test = torch.tensor(y_test).float().unsqueeze(1).to(dev)
-
-    # Create dataloaders
-    train_dataloader = DataLoader(
-        TensorDataset(x_train, y_train),
-        # shuffle=True,
-        batch_size=BATCH_SIZE)
-    test_dataloader = DataLoader(TensorDataset(x_test, y_test),
-                                 batch_size=BATCH_SIZE)
+    train_dataloader, test_dataloader = get_dataloaders(
+        args["dataset_location"], dev)
 
     writer = SummaryWriter('runs/face-smile')
 
@@ -62,99 +32,24 @@ def main():
     model = train_model(SmilingClassifier(), train_dataloader, test_dataloader,
                         300, dev, writer)
 
-    # Write graph to tensorboard
-    writer.add_graph(model, image_samples)
-
     # Save model to file
-    if len(sys.argv) == 3:
+    if args["save"]:
         filename = f"{date.today()}.pt"
         torch.save(model.state_dict(), filename)
         print(f"Model saved to {filename}.")
 
 
-def train_model(model: nn.Module, train_dataloader: DataLoader,
-                test_dataloader: DataLoader, epochs: int, dev: str,
-                writer: SummaryWriter) -> nn.Module:
-    """Returns a trained model
-
-    Args:
-        model: pass the initialized class of model
-        train_dataloader: Dataloader containing data for training
-        test_dataloader: Dataloader with test data
-        dev: Device to run
-
-    Returns:
-        Model
-    """
-    model = model.to(dev)
-    sample_input, sample_target = next(iter(test_dataloader))
-
-    # Define the loss function
-    criterion = nn.BCELoss()
-
-    # Define the optimizer
-    optimizer = optim.Adam(model.parameters(), lr=0.000001)
-
-    # Fit model on training data
-    with tqdm(range(epochs)) as pbar:
-        for epoch in range(epochs):
-            model.train()
-
-            running_loss = 0.0
-            average_loss = 0.0
-            for i, data in enumerate(train_dataloader):
-                inputs, targets = data
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
-                if i == len(train_dataloader) - 1:
-                    average_loss = running_loss / len(train_dataloader)
-                    # TODO: this code is shit
-                    eval_loss, accuracy = eval_model(model, test_dataloader,
-                                                     criterion)
-                    writer.add_scalars("Training stats", {
-                        "Training loss": average_loss,
-                        "Test loss": eval_loss,
-                    },
-                                       global_step=epoch + 1)
-                    writer.add_scalar("Accuracy", accuracy, epoch + 1)
-                    writer.add_figure(
-                        "predictions vs. actuals",
-                        plot_classes_preds(model, sample_input, sample_target),
-                        epoch + 1)
-                    running_loss = 0.0
-
-            pbar.update()
-            pbar.set_postfix(
-                epoch=epoch,
-                loss=f"{average_loss:.4f}",
-            )
-
-    return model
-
-
-def eval_model(model: nn.Module, test_dataloader: DataLoader, criterion):
-    # Evaluate neural network performance
-    model.eval()
-    correct = 0
-    total = 0
-    val_loss = 0.0
-    with torch.no_grad():
-        for inputs, targets in test_dataloader:
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-            val_loss += loss.item()
-            predicted = (outputs > 0.5).float()
-            total += targets.size(0)
-            correct += (predicted == targets).sum().item()
-
-    average_val_loss = val_loss / len(test_dataloader)
-    accuracy = 100 * correct / total
-    return average_val_loss, accuracy
-
-
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(prog="pipeline",
+                                     description="Train the model")
+    parser.add_argument("dataset_location")
+    parser.add_argument("-s",
+                        "--save",
+                        action="store_true",
+                        help="save the model")
+    parser.add_argument("--no-cuda",
+                        action="store_true",
+                        help="Don't use cuda for training")
+
+    args = parser.parse_args()
+    main(args)
