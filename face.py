@@ -13,11 +13,10 @@ from torch.utils.tensorboard.writer import SummaryWriter
 import torchvision
 import torchvision.transforms as transforms
 from tqdm import tqdm
-from helpers import plot_classes_preds
 
-EPOCHS = 300
-IMG_WIDTH = 180
-IMG_HEIGHT = 192
+from plotting import plot_classes_preds
+from models import SmilingClassifier
+
 TEST_SIZE = 0.3
 BATCH_SIZE = 64
 
@@ -25,6 +24,7 @@ BATCH_SIZE = 64
 def main():
 
     # Check command-line arguments
+    # TODO: argparse
     if len(sys.argv) not in [2, 3]:
         sys.exit("Usage: python face.py data_directory [model.h5]")
 
@@ -70,14 +70,15 @@ def main():
     writer.add_image('one_batch', img_grid)
 
     # Train model
-    model = get_trained_model(train_dataloader, test_dataloader, dev, writer)
+    model = train_model(SmilingClassifier(), train_dataloader, test_dataloader,
+                        300, dev, writer)
 
     # Write graph to tensorboard
     writer.add_graph(model, image_samples)
 
     # Save model to file
     if len(sys.argv) == 3:
-        filename = f"{date.today()}-{EPOCHS}.pt"
+        filename = f"{date.today()}.pt"
         torch.save(model.state_dict(), filename)
         print(f"Model saved to {filename}.")
 
@@ -91,6 +92,10 @@ def load_data(data_dir):
     of the images in the data directory `labels` should be a list of 
     integer labels, representing whether the person in image is smiling
     """
+    #TODO: make sure the order is correct
+    IMG_WIDTH = 180
+    IMG_HEIGHT = 192
+
     images = []
     labels = []
     data_path = os.path.join(data_dir, "files")
@@ -113,32 +118,13 @@ def load_data(data_dir):
     return (images, labels)
 
 
-class SmilingClassifier(nn.Module):
-
-    def __init__(self):
-        super(SmilingClassifier, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=5, stride=1, padding=2)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=2)
-        self.fc1 = nn.Linear(64 * 45 * 48, 512)
-        self.fc2 = nn.Linear(512, 1)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        x = self.pool(torch.relu(self.conv1(x)))
-        x = self.pool(torch.relu(self.conv2(x)))
-        x = x.view(-1, 64 * 45 * 48)
-        x = torch.relu(self.fc1(x))
-        x = self.sigmoid(self.fc2(x))
-        return x
-
-
-def get_trained_model(train_dataloader: DataLoader,
-                      test_dataloader: DataLoader, dev: str,
-                      writer: SummaryWriter) -> SmilingClassifier:
+def train_model(model: nn.Module, train_dataloader: DataLoader,
+                test_dataloader: DataLoader, epochs: int, dev: str,
+                writer: SummaryWriter) -> nn.Module:
     """Returns a trained model
 
     Args:
+        model: pass the initialized class of model
         train_dataloader: Dataloader containing data for training
         test_dataloader: Dataloader with test data
         dev: Device to run
@@ -146,7 +132,7 @@ def get_trained_model(train_dataloader: DataLoader,
     Returns:
         Model
     """
-    model = SmilingClassifier().to(dev)
+    model = model.to(dev)
     sample_input, sample_target = next(iter(test_dataloader))
 
     # Define the loss function
@@ -156,8 +142,8 @@ def get_trained_model(train_dataloader: DataLoader,
     optimizer = optim.Adam(model.parameters(), lr=0.000001)
 
     # Fit model on training data
-    with tqdm(range(EPOCHS)) as pbar:
-        for epoch in range(EPOCHS):
+    with tqdm(range(epochs)) as pbar:
+        for epoch in range(epochs):
             model.train()
 
             running_loss = 0.0
@@ -172,6 +158,7 @@ def get_trained_model(train_dataloader: DataLoader,
                 running_loss += loss.item()
                 if i == len(train_dataloader) - 1:
                     average_loss = running_loss / len(train_dataloader)
+                    # TODO: this code is shit
                     eval_loss, accuracy = eval_model(model, test_dataloader,
                                                      criterion)
                     writer.add_scalars("Training stats", {
@@ -195,8 +182,7 @@ def get_trained_model(train_dataloader: DataLoader,
     return model
 
 
-def eval_model(model: SmilingClassifier, test_dataloader: DataLoader,
-               criterion):
+def eval_model(model: nn.Module, test_dataloader: DataLoader, criterion):
     # Evaluate neural network performance
     model.eval()
     correct = 0
