@@ -1,10 +1,14 @@
 import argparse
+import os
+import shutil
 
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
+from torchvision import models
+from torchvision.models.resnet import nn
 
 from logger_utils import plot_random_batch
-from models import Resnet
+from model_utils import train_model
 from preprocessing import get_dataloaders
 
 TEST_SIZE = 0.3
@@ -13,7 +17,11 @@ BATCH_SIZE = 64
 
 
 def main(args):
-    # Check command-line arguments
+    if args.clean:
+        try:
+            shutil.rmtree(os.path.join(os.path.dirname(__file__), "runs"))
+        except FileNotFoundError:
+            print("Already cleaned, skipping")
 
     if torch.cuda.is_available() and not args.nocuda:
         dev = "cuda"
@@ -30,13 +38,20 @@ def main(args):
     # Train model
     # model = train_model(SmilingClassifier(), train_dataloader, test_dataloader,
     #                     300, dev, writer)
-    net = Resnet()
-    net.train_model(train_dataloader,
-                    test_dataloader,
-                    int(args.epochs),
-                    dev,
-                    writer,
-                    name="resnet50")
+    net = models.resnet50(progress=True,
+                          weights=models.ResNet50_Weights.DEFAULT)
+
+    net = nn.Sequential(net, nn.Linear(1000, 1), nn.Sigmoid())
+
+    save_dir = os.path.join(os.path.dirname(__file__), "runs", "resnet50")
+
+    train_model(net,
+                train_dataloader,
+                test_dataloader,
+                int(args.epochs),
+                dev,
+                writer,
+                save_dir=save_dir)
 
 
 if __name__ == "__main__":
@@ -48,6 +63,9 @@ if __name__ == "__main__":
                         action="store_true",
                         dest="nocuda",
                         help="Don't use cuda for training")
+    parser.add_argument("--clean",
+                        action="store_true",
+                        help="Clean up files in ./runs")
 
     args = parser.parse_args()
     main(args)
