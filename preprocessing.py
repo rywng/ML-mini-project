@@ -11,38 +11,61 @@ IMG_WIDTH = 180
 IMG_HEIGHT = 192
 
 
-def data_aug(img, labels, photometric_only=False):
+def data_aug(x_train, y_train):
+    x_new = []
+    y_new = []
+    for i in range(len(x_train)):
+        for res in generate_aug_data(torch.tensor(x_train[i])):
+            x_new.append(res)
+            y_new.append(y_train[i])
+    return np.array(x_new), np.array(y_new)
+
+
+def generate_aug_data(img, photometric_only=False):
+
+    def rand():
+        return torch.rand((1, 1))
+
     # Photometric
-    res = v2.Grayscale(num_output_channels=3)(img)
-    yield res, labels
+    if rand() > 0.7:
+        res = v2.Grayscale(num_output_channels=3)(img)
+        yield res
 
-    res = v2.ColorJitter(.3, .3, .3, .2)(img)
-    yield res, labels
+    if rand() > 0.7:
+        res = v2.ColorJitter(.3, .3, .3, .2)(img)
+        yield res
 
-    res = v2.RandomPosterize(2, 0.5)(img)
-    yield res, labels
+    res = img
+    if rand() > 0.8:
+        res = v2.RandomPosterize(2, 1)(img)
+        yield res
 
-    res = v2.RandomAutocontrast(0.5)(res)
-    yield res, labels
+    if rand() > 0.6:
+        res = v2.RandomAutocontrast(1)(res)
+        yield res
 
-    res = v2.RandomEqualize(0.5)(res)
-    yield res, labels
+    if rand() > 0.6:
+        res = v2.RandomEqualize(1)(res)
+        yield res
 
     if not photometric_only:
-        res = v2.RandomPerspective()(res)
-        yield res, labels
+        if rand() > 0.5:
+            res = v2.RandomPerspective(0.5, p=1)(res)
+            yield res
 
-        res = v2.RandomPerspective()(img)
-        yield res, labels
+        if rand() > 0.7:
+            res = v2.RandomPerspective(p=1)(img)
+            yield res
 
-        res = v2.RandomRotation(degrees=(-120, 120), expand=True)(img)
-        res = v2.Resize((IMG_HEIGHT, IMG_WIDTH))(res)
-        yield res, labels
+        if rand() > 0.6:
+            res = v2.RandomRotation(degrees=(-90, 90), expand=True)(img)
+            res = v2.Resize((IMG_HEIGHT, IMG_WIDTH))(res)
+            yield res
 
-    yield img, labels
+    yield img
 
 
-def load_data(data_dir):
+def load_data(data_dir, smile=True):
     """
     Load image data from directory `data_dir/files`.
     Load labels from file `data_dir/labels.txt`
@@ -62,16 +85,14 @@ def load_data(data_dir):
             img = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
             res = transforms.ToTensor()(img)
 
-            line_data = int(
-                label_file.readline().split(" ")[0])  # convert labels to int
+            if smile:
+                line_data = int(label_file.readline().split(" ")
+                                [0])  # convert labels to int
+            else:
+                line_data = label_file.readline().split(" ")[1:]
 
-            # TODO: add multi-output
-            for img_new, label in data_aug(res,
-                                           line_data,
-                                           photometric_only=False):
-                img_new = np.array(img_new)
-                images.append(img_new)
-                labels.append(label)
+            images.append(res)
+            labels.append(line_data)
 
     return (images, labels)
 
@@ -85,6 +106,8 @@ def get_dataloaders(data_dir, dev, batch_size=64, test_size=0.3):
     x_train, x_test, y_train, y_test = train_test_split(
         np.array(image_samples), np.array(label_samples), test_size=test_size)
 
+    x_train, y_train = data_aug(x_train, y_train)
+
     # Convert data to PyTorch tensors and normalize
     print(f"Using cuda: {torch.cuda.is_available()}")
     x_train = torch.tensor(x_train).float().to(dev)
@@ -93,10 +116,9 @@ def get_dataloaders(data_dir, dev, batch_size=64, test_size=0.3):
     y_test = torch.tensor(y_test).float().unsqueeze(1).to(dev)
 
     # Create dataloaders
-    train_dataloader = DataLoader(
-        TensorDataset(x_train, y_train),
-        # shuffle=True,
-        batch_size=batch_size)
+    train_dataloader = DataLoader(TensorDataset(x_train, y_train),
+                                  shuffle=True,
+                                  batch_size=batch_size)
     test_dataloader = DataLoader(TensorDataset(x_test, y_test),
                                  batch_size=batch_size)
     return train_dataloader, test_dataloader
