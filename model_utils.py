@@ -27,8 +27,7 @@ def train_model(model,
     # Define the optimizer
     lr = 1e-5
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.LinearLR(optimizer, 1, 0.1,
-                                            int(epochs * 0.7))
+    scheduler = optim.lr_scheduler.LinearLR(optimizer, 1, 0.1, 50)
 
     # Data dir
     try:
