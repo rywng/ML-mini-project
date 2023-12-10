@@ -9,9 +9,14 @@ from tqdm import tqdm
 from logger_utils import plot_classes_preds
 
 
-def train_model(model, train_dataloader: DataLoader,
-                test_dataloader: DataLoader, epochs: int, dev: str,
-                writer: SummaryWriter, save_dir: str) -> nn.Module:
+def train_model(model,
+                train_dataloader: DataLoader,
+                test_dataloader: DataLoader,
+                epochs: int,
+                dev: str,
+                writer: SummaryWriter,
+                save_dir: str,
+                nosave=False) -> nn.Module:
 
     model = model.to(dev)
     sample_input, sample_target = next(iter(test_dataloader))
@@ -22,7 +27,8 @@ def train_model(model, train_dataloader: DataLoader,
     # Define the optimizer
     lr = 1e-5
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.LinearLR(optimizer, 1, 0.3, 100)
+    scheduler = optim.lr_scheduler.LinearLR(optimizer, 1, 0.1,
+                                            int(epochs * 0.7))
 
     # Data dir
     try:
@@ -35,9 +41,10 @@ def train_model(model, train_dataloader: DataLoader,
         for epoch in range(epochs):
             model.train()
 
+            correct = 0.0
             running_loss = 0.0
             average_loss = 0.0
-            for i, data in enumerate(train_dataloader):
+            for data in train_dataloader:
                 inputs, targets = data
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
@@ -45,26 +52,31 @@ def train_model(model, train_dataloader: DataLoader,
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-                if i == len(train_dataloader) - 1:
-                    average_loss = running_loss / len(train_dataloader)
-                    # TODO: this code is shit
-                    eval_loss, accuracy = eval_model(model, test_dataloader,
-                                                     criterion)
-                    writer.add_scalars("Training stats", {
-                        "Training loss": average_loss,
-                        "Test loss": eval_loss,
-                    },
-                                       global_step=epoch + 1)
-                    writer.add_scalar("Accuracy", accuracy, epoch + 1)
-                    writer.add_figure(
-                        "predictions vs. actuals",
-                        plot_classes_preds(model, sample_input, sample_target),
-                        epoch + 1)
-                    running_loss = 0.0
+                correct += (
+                    (outputs
+                     > 0.5).float() == targets).sum().item()  # calculate accu
 
-                    if epoch % 10 == 9:
-                        torch.save(model.state_dict(),
-                                   os.path.join(save_dir, f"{epoch}.pt"))
+            average_loss = running_loss / len(train_dataloader)
+            # TODO: this code is shit
+            eval_loss, eval_accuracy = eval_model(model, test_dataloader,
+                                                  criterion)
+            writer.add_scalars("loss", {
+                "Train": average_loss,
+                "Eval": eval_loss,
+            },
+                               global_step=epoch + 1)
+            writer.add_scalar("accuracy/Train",
+                              correct / len(train_dataloader), epoch + 1)
+            writer.add_scalar("accuracy/Eval", eval_accuracy, epoch + 1)
+            writer.add_figure(
+                "predictions vs. actuals",
+                plot_classes_preds(model, sample_input, sample_target),
+                epoch + 1)
+            running_loss = 0.0
+
+            if not nosave and epoch % 3 == 2:
+                torch.save(model.state_dict(),
+                           os.path.join(save_dir, f"{epoch}.pt"))
 
             scheduler.step()
             pbar.update()

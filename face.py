@@ -43,7 +43,8 @@ def main(args):
 
     net = nn.Sequential(net, nn.Linear(1000, 1), nn.Sigmoid())
 
-    save_dir = os.path.join(os.path.dirname(__file__), "runs", "resnet50")
+    save_dir = os.path.join(os.path.dirname(__file__), "runs",
+                            "resnet50-face-smile")
 
     train_model(net,
                 train_dataloader,
@@ -51,14 +52,15 @@ def main(args):
                 int(args.epochs),
                 dev,
                 writer,
-                save_dir=save_dir)
+                save_dir=save_dir,
+                nosave=args.nosave)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="pipeline",
                                      description="Train the model")
     parser.add_argument("dataset_location")
-    parser.add_argument("-e", "--epochs", default="300")
+    parser.add_argument("-e", "--epochs", default="50")
     parser.add_argument("--no-cuda",
                         action="store_true",
                         dest="nocuda",
@@ -66,6 +68,10 @@ if __name__ == "__main__":
     parser.add_argument("--clean",
                         action="store_true",
                         help="Clean up files in ./runs")
+    parser.add_argument("--no-save",
+                        dest="nosave",
+                        action="store_true",
+                        help="Don't save weight file")
 
     args = parser.parse_args()
     main(args)

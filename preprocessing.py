@@ -16,16 +16,26 @@ def data_aug(img, labels, photometric_only=False):
     res = v2.Grayscale(num_output_channels=3)(img)
     yield res, labels
 
-    res = v2.ColorJitter()(img)
+    res = v2.ColorJitter(.3, .3, .3, .2)(img)
+    yield res, labels
+
+    res = v2.RandomPosterize(2, 0.5)(img)
+    yield res, labels
+
+    res = v2.RandomAutocontrast(0.5)(res)
+    yield res, labels
+
+    res = v2.RandomEqualize(0.5)(res)
     yield res, labels
 
     if not photometric_only:
-        res = v2.RandomPerspective()(img)
-        yield res, labels
-        res = v2.RandomPerspective(distortion_scale=0.2)(img)
+        res = v2.RandomPerspective()(res)
         yield res, labels
 
-        res = v2.RandomRotation(degrees=(0, 180), expand=True)(img)
+        res = v2.RandomPerspective()(img)
+        yield res, labels
+
+        res = v2.RandomRotation(degrees=(-120, 120), expand=True)(img)
         res = v2.Resize((IMG_HEIGHT, IMG_WIDTH))(res)
         yield res, labels
 
