@@ -27,14 +27,15 @@ def plot_classes_preds(net, images, labels):
     information based on whether the prediction was correct or not.
     Uses the "images_to_probs" function.
     '''
-    RANGE = 8
+    RANGE = min(16, len(labels))
+    ROWS = 4
     images = images[:RANGE]
     labels = labels[:RANGE]
     probs = net(images)
     # plot the images in the batch, along with predicted and true labels
     fig = plt.figure(figsize=FIGSIZE)
     for idx in np.arange(RANGE):
-        ax = fig.add_subplot(2, RANGE // 2, idx + 1, xticks=[], yticks=[])
+        ax = fig.add_subplot(ROWS, RANGE // ROWS, idx + 1, xticks=[], yticks=[])
         matplotlib_imshow(images[idx], one_channel=False)
         ax.set_title(
             f"{float(probs[idx] * 100.0):.2f}%, {float(labels[idx] * 100):.2f}%\n"
