@@ -11,11 +11,12 @@ IMG_WIDTH = 180
 IMG_HEIGHT = 192
 
 
-def data_aug(x_train, y_train):
+def data_aug(x_train, y_train, photometric_only=False):
     x_new = []
     y_new = []
     for i in range(len(x_train)):
-        for res in generate_aug_data(torch.tensor(x_train[i])):
+        for res in generate_aug_data(torch.tensor(x_train[i]),
+                                     photometric_only=photometric_only):
             x_new.append(res)
             y_new.append(y_train[i])
     return np.array(x_new), np.array(y_new)
@@ -59,19 +60,18 @@ def generate_aug_data(img, photometric_only=False):
 
         if rand() > 0.6:
             res = v2.RandomRotation(degrees=(-90, 90), expand=True)(img)
-            res = v2.Resize((IMG_HEIGHT, IMG_WIDTH))(res)
+            res = v2.Resize((IMG_HEIGHT, IMG_WIDTH), antialias=True)(res)
             yield res
 
     yield img
 
 
-def load_data(data_dir, smile=True):
-    """
-    Load image data from directory `data_dir/files`.
-    Load labels from file `data_dir/labels.txt`
+def load_data(data_dir, slice_callback):
+    """Load image data from directory `data_dir/files`. Load labels from file
+    `data_dir/labels.txt`
 
     Return tuple `(images, labels)`. `images` should be a list of all
-    of the images in the data directory `labels` should be a list of 
+    of the images in the data directory `labels` should be a list of
     integer labels, representing whether the person in image is smiling
     """
     images = []
@@ -85,11 +85,8 @@ def load_data(data_dir, smile=True):
             img = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
             res = transforms.ToTensor()(img)
 
-            if smile:
-                line_data = int(label_file.readline().split(" ")
-                                [0])  # convert labels to int
-            else:
-                line_data = label_file.readline().split(" ")[1:]
+            line_data = label_file.readline().split()
+            line_data = slice_callback(line_data)
 
             images.append(res)
             labels.append(line_data)
@@ -97,23 +94,29 @@ def load_data(data_dir, smile=True):
     return (images, labels)
 
 
-def get_dataloaders(data_dir, dev, batch_size=64, test_size=0.3):
+def get_dataloaders(data_dir,
+                    dev,
+                    slice_callback,
+                    batch_size=64,
+                    test_size=0.3,
+                    photometric_only=False):
     # Get image arrays and labels for all image files
-    image_samples, label_samples = load_data(data_dir)
+    image_samples, label_samples = load_data(data_dir, slice_callback)
 
     # Split data into training and testing sets
     # TODO: don't use scikit, use torch, and keep the tensor format
     x_train, x_test, y_train, y_test = train_test_split(
         np.array(image_samples), np.array(label_samples), test_size=test_size)
 
-    x_train, y_train = data_aug(x_train, y_train)
+    x_train, y_train = data_aug(x_train, y_train, photometric_only=photometric_only)
 
     # Convert data to PyTorch tensors and normalize
     print(f"Using cuda: {torch.cuda.is_available()}")
     x_train = torch.tensor(x_train).float().to(dev)
-    y_train = torch.tensor(y_train).float().unsqueeze(1).to(dev)
+    y_train = torch.tensor(y_train).float().to(dev)
     x_test = torch.tensor(x_test).float().to(dev)
-    y_test = torch.tensor(y_test).float().unsqueeze(1).to(dev)
+    y_test = torch.tensor(y_test).float().to(dev)
+
 
     # Create dataloaders
     train_dataloader = DataLoader(TensorDataset(x_train, y_train),

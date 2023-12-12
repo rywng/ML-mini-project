@@ -34,16 +34,15 @@ def plot_classes_preds(net, images, labels):
     # plot the images in the batch, along with predicted and true labels
     fig = plt.figure(figsize=FIGSIZE)
     for idx in np.arange(RANGE):
+        prob = probs[idx].detach().to("cpu").numpy()
+        label = labels[idx].detach().to("cpu").numpy()
         ax = fig.add_subplot(ROWS,
                              RANGE // ROWS,
                              idx + 1,
                              xticks=[],
                              yticks=[])
         matplotlib_imshow(images[idx], one_channel=False)
-        ax.set_title(
-            f"{float(probs[idx] * 100.0):.2f}%, {float(labels[idx] * 100):.2f}%\n"
-            .format(color=("green" if abs(probs[idx] -
-                                          labels[idx]) < 0.4 else "red")))
+        ax.set_title(f"{prob}%, {label}%\n")
     return fig
 
 
@@ -58,6 +57,13 @@ def plot_random_batch(train_dataloader: DataLoader, batch_size: int):
     for i in np.arange(batch_size):
         ax = fig.add_subplot(8, batch_size // 8, i + 1, xticks=[], yticks=[])
         matplotlib_imshow(image_samples[i])
-        ax.set_title(str(int(label_samples[i])))
+        sample = label_samples[i]
+        if len(sample) > 1:
+            # TODO: this is broken rn
+            sample = list(map(float, sample))
+            sample = list(round(i, 4) for i in sample)
+            ax.set_title(str(sample))
+        else:
+            ax.set_title(str(int(sample)))
 
     return fig

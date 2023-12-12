@@ -3,17 +3,30 @@ import os
 import shutil
 
 import torch
+from torch.nn import BCELoss, MSELoss
 from torch.utils.tensorboard.writer import SummaryWriter
-from torchvision import models
-from torchvision.models.resnet import nn
 
 from logger_utils import plot_random_batch
-from model_utils import train_model
+from model_utils import SmilingClassifier, resnet50, train_model
 from preprocessing import get_dataloaders
 
 TEST_SIZE = 0.3
 # Don't change this!
 BATCH_SIZE = 64
+
+config = {
+    "resnet50-face-smile":
+    [resnet50.get_resnet_smile(), lambda a: int(a[0]),
+     BCELoss(), False],
+    "simple-face-smile":
+    [SmilingClassifier(), lambda a: int(a[0]),
+     BCELoss(), False],
+    "resnet50-position": [
+        resnet50.get_resnet_pos(),
+        lambda a: torch.tensor(list(map(float, a[1:])), dtype=torch.float64),
+        MSELoss(), True
+    ],
+}
 
 
 def main(args):
@@ -29,26 +42,22 @@ def main(args):
         dev = "cpu"
 
     train_dataloader, test_dataloader = get_dataloaders(
-        args.dataset_location, dev)
+        args.dataset_location,
+        dev,
+        config[args.model][1],
+        photometric_only=config[args.model][3])
 
     writer = SummaryWriter('runs/face-smile')
 
     writer.add_figure("One batch",
                       plot_random_batch(train_dataloader, BATCH_SIZE))
-    # Train model
-    # model = train_model(SmilingClassifier(), train_dataloader, test_dataloader,
-    #                     300, dev, writer)
-    net = models.resnet50(progress=True,
-                          weights=models.ResNet50_Weights.DEFAULT)
 
-    net = nn.Sequential(net, nn.Linear(1000, 1), nn.Sigmoid())
+    net = config[args.model][0]
 
-    save_dir = os.path.join(os.path.dirname(__file__), "runs",
-                            "resnet50-face-smile")
+    save_dir = os.path.join(os.path.dirname(__file__), "runs", args.model[0])
 
-    train_model(net,
-                train_dataloader,
-                test_dataloader,
+    train_model(net, (train_dataloader, test_dataloader),
+                config[args.model][2],
                 int(args.epochs),
                 dev,
                 writer,
@@ -60,6 +69,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="pipeline",
                                      description="Train the model")
     parser.add_argument("dataset_location")
+    parser.add_argument("-m",
+                        "--model",
+                        default="resnet50-face-smile",
+                        choices=config.keys())
     parser.add_argument("-e", "--epochs", default="50")
     parser.add_argument("--no-cuda",
                         action="store_true",

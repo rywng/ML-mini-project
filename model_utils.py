@@ -1,28 +1,31 @@
 import os
+
 import torch
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
+from torchvision import models
 from tqdm import tqdm
 
 from logger_utils import plot_classes_preds
 
 
 def train_model(model,
-                train_dataloader: DataLoader,
-                test_dataloader: DataLoader,
+                dataloaders,
+                loss,
                 epochs: int,
                 dev: str,
                 writer: SummaryWriter,
                 save_dir: str,
                 nosave=False) -> nn.Module:
 
+    train_dataloader, test_dataloader = dataloaders
     model = model.to(dev)
     sample_input, sample_target = next(iter(test_dataloader))
 
     # Define the loss function
-    criterion = nn.BCELoss()
+    criterion = loss
 
     # Define the optimizer
     lr = 1e-5
@@ -124,3 +127,29 @@ class SmilingClassifier(nn.Module):
         x = torch.relu(self.fc1(x))
         x = self.sigmoid(self.fc2(x))
         return x
+
+
+class resnet50():
+
+    @classmethod
+    def get_resnet_base(cls, pretrained=True):
+        if pretrained:
+            return models.resnet50(progress=True,
+                                   weights=models.ResNet50_Weights.DEFAULT)
+        else:
+            return models.resnet50(progress=True)
+
+    @classmethod
+    def get_resnet_smile(cls, pretrained=True):
+        net = cls.get_resnet_base(pretrained)
+        net = nn.Sequential(net, nn.Linear(1000, 1), nn.Sigmoid())
+        return net
+
+    @classmethod
+    def get_resnet_pos(cls, pretrained=True):
+        net = cls.get_resnet_base(pretrained)
+        net = nn.Sequential(
+            net,
+            nn.Linear(1000, 3),
+        )
+        return net
