@@ -3,7 +3,6 @@ import os
 import shutil
 
 import torch
-from torch.nn import BCELoss, MSELoss
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from logger_utils import plot_random_batch
@@ -15,17 +14,9 @@ TEST_SIZE = 0.3
 BATCH_SIZE = 64
 
 config = {
-    "resnet50-face-smile":
-    [resnet50.get_resnet_smile(), lambda a: int(a[0]),
-     BCELoss(), False],
-    "simple-face-smile":
-    [SmilingClassifier(), lambda a: int(a[0]),
-     BCELoss(), False],
-    "resnet50-position": [
-        resnet50.get_resnet_pos(),
-        lambda a: torch.tensor(list(map(float, a[1:])), dtype=torch.float64),
-        MSELoss(), True
-    ],
+    "resnet50-face-smile": [resnet50.get_resnet_smile(), False],
+    "simple-face-smile": [SmilingClassifier(), False],
+    "resnet50-position": [resnet50.get_resnet_pos(), True],
 }
 
 
@@ -42,10 +33,7 @@ def main(args):
         dev = "cpu"
 
     train_dataloader, test_dataloader = get_dataloaders(
-        args.dataset_location,
-        dev,
-        config[args.model][1],
-        photometric_only=config[args.model][3])
+        args.dataset_location, dev, photometric_only=config[args.model][1])
 
     writer = SummaryWriter('runs/face-smile')
 
@@ -54,14 +42,14 @@ def main(args):
 
     net = config[args.model][0]
 
-    save_dir = os.path.join(os.path.dirname(__file__), "runs", args.model[0])
+    save_dir = os.path.join(os.path.dirname(__file__), "runs", args.model)
 
     train_model(net, (train_dataloader, test_dataloader),
-                config[args.model][2],
                 int(args.epochs),
                 dev,
                 writer,
                 save_dir=save_dir,
+                pose=config[args.model][1],
                 nosave=args.nosave)
 
 

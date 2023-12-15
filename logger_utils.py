@@ -46,7 +46,7 @@ def plot_classes_preds(net, images, labels):
     return fig
 
 
-def plot_random_batch(train_dataloader: DataLoader, batch_size: int):
+def plot_random_batch(train_dataloader: DataLoader, batch_size: int, pose=True):
     # sample some data to writer
     # get some random training images
     dataiter = iter(train_dataloader)
@@ -57,13 +57,6 @@ def plot_random_batch(train_dataloader: DataLoader, batch_size: int):
     for i in np.arange(batch_size):
         ax = fig.add_subplot(8, batch_size // 8, i + 1, xticks=[], yticks=[])
         matplotlib_imshow(image_samples[i])
-        sample = label_samples[i]
-        if len(sample) > 1:
-            # TODO: this is broken rn
-            sample = list(map(float, sample))
-            sample = list(round(i, 4) for i in sample)
-            ax.set_title(str(sample))
-        else:
-            ax.set_title(str(int(sample)))
-
+        if not pose:
+            ax.set_title(str(int(label_samples[i])))
     return fig

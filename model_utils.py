@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import torch
 from torch import nn
 import torch.optim as optim
@@ -13,11 +14,11 @@ from logger_utils import plot_classes_preds
 
 def train_model(model,
                 dataloaders,
-                loss,
                 epochs: int,
                 dev: str,
                 writer: SummaryWriter,
                 save_dir: str,
+                pose=False,
                 nosave=False) -> nn.Module:
 
     train_dataloader, test_dataloader = dataloaders
@@ -25,7 +26,10 @@ def train_model(model,
     sample_input, sample_target = next(iter(test_dataloader))
 
     # Define the loss function
-    criterion = loss
+    if pose:
+        criterion = nn.MSELoss()
+    else:
+        criterion = nn.BCELoss()
 
     # Define the optimizer
     lr = 1e-5
@@ -61,7 +65,7 @@ def train_model(model,
             average_loss = running_loss / len(train_dataloader)
             # TODO: this code is shit
             eval_loss, eval_accuracy = eval_model(model, test_dataloader,
-                                                  criterion)
+                                                  criterion, pose=pose)
             writer.add_scalars("loss", {
                 "Train": average_loss,
                 "Eval": eval_loss,
@@ -89,7 +93,7 @@ def train_model(model,
     return model
 
 
-def eval_model(model, test_dataloader: DataLoader, criterion):
+def eval_model(model, test_dataloader: DataLoader, criterion, pose=False):
     # Evaluate neural network performance
     model.eval()
     correct = 0
@@ -100,12 +104,16 @@ def eval_model(model, test_dataloader: DataLoader, criterion):
             outputs = model(inputs)
             loss = criterion(outputs, targets)
             val_loss += loss.item()
-            predicted = (outputs > 0.5).float()
-            total += targets.size(0)
-            correct += (predicted == targets).sum().item()
+            if not pose:
+                predicted = (outputs > 0.5).float()
+                total += targets.size(0)
+                correct += (predicted == targets).sum().item()
 
     average_val_loss = val_loss / len(test_dataloader)
-    accuracy = 100 * correct / total
+    if not pose:
+        accuracy = 100 * correct / total
+    else:
+        accuracy = 0
     return average_val_loss, accuracy
 
 

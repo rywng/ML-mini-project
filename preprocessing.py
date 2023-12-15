@@ -66,7 +66,7 @@ def generate_aug_data(img, photometric_only=False):
     yield img
 
 
-def load_data(data_dir, slice_callback):
+def load_data(data_dir, photometric_only=False):
     """Load image data from directory `data_dir/files`. Load labels from file
     `data_dir/labels.txt`
 
@@ -85,8 +85,12 @@ def load_data(data_dir, slice_callback):
             img = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
             res = transforms.ToTensor()(img)
 
-            line_data = label_file.readline().split()
-            line_data = slice_callback(line_data)
+            if not photometric_only: # smile
+                line_data = int(label_file.readline().split()
+                                [0])  # convert labels to int
+            else: # pose
+                line_data = label_file.readline().split()[1:]
+                line_data = torch.tensor(list(map(float, line_data)), dtype=torch.float64)
 
             images.append(res)
             labels.append(line_data)
@@ -96,12 +100,11 @@ def load_data(data_dir, slice_callback):
 
 def get_dataloaders(data_dir,
                     dev,
-                    slice_callback,
                     batch_size=64,
                     test_size=0.3,
                     photometric_only=False):
     # Get image arrays and labels for all image files
-    image_samples, label_samples = load_data(data_dir, slice_callback)
+    image_samples, label_samples = load_data(data_dir, photometric_only=photometric_only)
 
     # Split data into training and testing sets
     # TODO: don't use scikit, use torch, and keep the tensor format
