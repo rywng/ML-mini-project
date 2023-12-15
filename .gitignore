@@ -1,4 +1,6 @@
 .venv
+.envrc
+notebooks/
 genki4k/
 __pycache__/
 /Session.vim

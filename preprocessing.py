@@ -114,7 +114,7 @@ def get_dataloaders(data_dir,
     x_train, y_train = data_aug(x_train, y_train, photometric_only=photometric_only)
 
     # Convert data to PyTorch tensors and normalize
-    print(f"Using cuda: {torch.cuda.is_available()}")
+    print(f"Using device: {dev}")
     x_train = torch.tensor(x_train).float().to(dev)
     y_train = torch.tensor(y_train).float().to(dev)
     x_test = torch.tensor(x_test).float().to(dev)

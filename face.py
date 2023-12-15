@@ -4,6 +4,7 @@ import shutil
 
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
+from cuda_utils import get_least_used_gpu
 
 from logger_utils import plot_random_batch
 from model_utils import SmilingClassifier, resnet50, train_model
@@ -28,7 +29,7 @@ def main(args):
             print("Already cleaned, skipping")
 
     if torch.cuda.is_available() and not args.nocuda:
-        dev = "cuda"
+        dev = get_least_used_gpu()
     else:
         dev = "cpu"
 
