@@ -85,12 +85,13 @@ def load_data(data_dir, photometric_only=False):
             img = cv2.resize(img, dsize=(IMG_WIDTH, IMG_HEIGHT))
             res = transforms.ToTensor()(img)
 
-            if not photometric_only: # smile
-                line_data = int(label_file.readline().split()
-                                [0])  # convert labels to int
-            else: # pose
+            if not photometric_only:  # smile
+                line_data = int(
+                    label_file.readline().split()[0])  # convert labels to int
+            else:  # pose
                 line_data = label_file.readline().split()[1:]
-                line_data = torch.tensor(list(map(float, line_data)), dtype=torch.float64)
+                line_data = torch.tensor(list(map(float, line_data)),
+                                         dtype=torch.float64)
 
             images.append(res)
             labels.append(line_data)
@@ -104,22 +105,28 @@ def get_dataloaders(data_dir,
                     test_size=0.3,
                     photometric_only=False):
     # Get image arrays and labels for all image files
-    image_samples, label_samples = load_data(data_dir, photometric_only=photometric_only)
+    image_samples, label_samples = load_data(data_dir,
+                                             photometric_only=photometric_only)
 
     # Split data into training and testing sets
     # TODO: don't use scikit, use torch, and keep the tensor format
     x_train, x_test, y_train, y_test = train_test_split(
         np.array(image_samples), np.array(label_samples), test_size=test_size)
 
-    x_train, y_train = data_aug(x_train, y_train, photometric_only=photometric_only)
+    x_train, y_train = data_aug(x_train,
+                                y_train,
+                                photometric_only=photometric_only)
 
     # Convert data to PyTorch tensors and normalize
     print(f"Using device: {dev}")
     x_train = torch.tensor(x_train).float().to(dev)
-    y_train = torch.tensor(y_train).float().to(dev)
     x_test = torch.tensor(x_test).float().to(dev)
-    y_test = torch.tensor(y_test).float().to(dev)
-
+    if photometric_only:
+        y_train = torch.tensor(y_train).float().to(dev)
+        y_test = torch.tensor(y_test).float().to(dev)
+    else:
+        y_train = torch.tensor(y_train).float().unsqueeze(1).to(dev)
+        y_test = torch.tensor(y_test).float().unsqueeze(1).to(dev)
 
     # Create dataloaders
     train_dataloader = DataLoader(TensorDataset(x_train, y_train),
