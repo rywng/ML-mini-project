@@ -23,10 +23,6 @@ def train_model(model,
 
     train_dataloader, test_dataloader = dataloaders
 
-    if torch.cuda.device_count() > 1:
-        print("Using", torch.cuda.device_count(), "GPUs")
-        model = nn.DataParallel(model)
-
     model = model.to(dev)
 
     sample_input, sample_target = next(iter(test_dataloader))
