@@ -67,7 +67,7 @@ def plot_random_batch(train_dataloader: DataLoader,
     return fig
 
 
-def plot_roc_graph(model: nn.Module, test_dataloader: DataLoader, stdout=True):
+def plot_roc_graph(model: nn.Module, test_dataloader: DataLoader):
     model.eval()
 
     x_test, y_test = extract_dataloader(test_dataloader)
@@ -79,14 +79,11 @@ def plot_roc_graph(model: nn.Module, test_dataloader: DataLoader, stdout=True):
                                       tpr=tpr,
                                       roc_auc=roc_auc,
                                       estimator_name="Smiling cliassification")
-    if stdout:
-        display.plot()
-        plt.show()
-    else:
-        return display.figure_
+    display.plot()
+    plt.show()
 
 
-def plot_pr_graph(model: nn.Module, test_dataloader: DataLoader, stdout=True):
+def plot_pr_graph(model: nn.Module, test_dataloader: DataLoader):
     model.eval()
 
     x_test, y_test = extract_dataloader(test_dataloader)
@@ -97,14 +94,34 @@ def plot_pr_graph(model: nn.Module, test_dataloader: DataLoader, stdout=True):
     pred = pred[:, 0]
     y_test = y_test[:, 0]
 
-    display = metrics.PrecisionRecallDisplay.from_predictions(
-        y_test, pred)
+    display = metrics.PrecisionRecallDisplay.from_predictions(y_test, pred)
 
-    if stdout:
-        display.plot()
-        plt.show()
-    else:
-        return display.figure_
+    display.plot()
+    plt.show()
+
+
+def print_confusion_matrix(model: nn.Module, test_dataloader: DataLoader):
+    model.eval()
+
+    x_test, y_test = extract_dataloader(test_dataloader)
+
+    pred = model(x_test).detach().numpy()
+    pred = pred[:, 0]
+
+    def custom_round(input: float, threshold: float) -> int:
+        if input > threshold:
+            return 1
+        else:
+            return 0
+
+    for threshold in torch.arange(0, 1, 0.125):
+        display = metrics.confusion_matrix(
+            y_test,
+            list(map(custom_round, pred, np.full(len(pred), threshold))),
+            labels=[0, 1])
+        print(f"Threshold: {threshold}")
+        print(display)
+        print()
 
 
 def extract_dataloader(dataloader: DataLoader):

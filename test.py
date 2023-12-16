@@ -3,7 +3,7 @@ import argparse
 from sklearn import os
 import torch
 
-from logger_utils import plot_pr_graph, plot_roc_graph
+from logger_utils import print_confusion_matrix, plot_roc_graph, plot_pr_graph
 from model_utils import model_config
 from preprocessing import get_dataloaders
 
@@ -22,8 +22,9 @@ def main(args):
     except FileNotFoundError:
         print("The file is not present")
         exit(1)
-    plot_roc_graph(net, test_dataloader, stdout=True)
-    plot_pr_graph(net, test_dataloader, stdout=True)
+    plot_roc_graph(net, test_dataloader)
+    plot_pr_graph(net, test_dataloader)
+    print_confusion_matrix(net, test_dataloader)
 
 
 if __name__ == "__main__":
