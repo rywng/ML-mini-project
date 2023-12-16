@@ -1,5 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn import metrics
+import torch
+from torch import nn
 from torch.functional import Tensor
 from torch.utils.data import DataLoader
 
@@ -46,7 +49,9 @@ def plot_classes_preds(net, images, labels):
     return fig
 
 
-def plot_random_batch(train_dataloader: DataLoader, batch_size: int, pose=True):
+def plot_random_batch(train_dataloader: DataLoader,
+                      batch_size: int,
+                      pose=True):
     # sample some data to writer
     # get some random training images
     dataiter = iter(train_dataloader)
@@ -60,3 +65,29 @@ def plot_random_batch(train_dataloader: DataLoader, batch_size: int, pose=True):
         if not pose:
             ax.set_title(str(int(label_samples[i])))
     return fig
+
+
+def plot_roc_graph(model: nn.Module, test_dataloader: DataLoader, print=True):
+    model.eval()
+    x_test = []
+    y_test = []
+    for batch in test_dataloader:
+        batch_x_test, batch_y_test = batch
+        x_test.append(batch_x_test)
+        y_test.append(batch_y_test)
+    x_test = torch.cat(x_test)
+    y_test = torch.cat(y_test)
+    x_test, y_test = next(iter(test_dataloader))
+    y_test = y_test.detach().numpy()
+    pred = model(x_test).detach().numpy()
+    fpr, tpr, _ = metrics.roc_curve(y_test, pred)
+    roc_auc = metrics.roc_auc_score(y_test, pred)
+    display = metrics.RocCurveDisplay(fpr=fpr,
+                                      tpr=tpr,
+                                      roc_auc=roc_auc,
+                                      estimator_name="Smiling cliassification")
+    if print:
+        display.plot()
+        plt.show()
+    else:
+        return display.figure_

@@ -4,15 +4,21 @@ import shutil
 
 import torch
 from torch.utils.tensorboard.writer import SummaryWriter
-from cuda_utils import get_least_used_gpu
 
+from cuda_utils import get_least_used_gpu
 from logger_utils import plot_random_batch
-from model_utils import train_model, model_config
+from model_utils import model_config, train_model
 from preprocessing import get_dataloaders
 
 TEST_SIZE = 0.3
 # Don't change this!
 BATCH_SIZE = 64
+
+def get_dev(args) -> str:
+    if torch.cuda.is_available() and "nocuda" not in args:
+        return get_least_used_gpu()
+    else:
+        return "cpu"
 
 
 def main(args):
@@ -22,10 +28,7 @@ def main(args):
         except FileNotFoundError:
             print("Already cleaned, skipping")
 
-    if torch.cuda.is_available() and not args.nocuda:
-        dev = get_least_used_gpu()
-    else:
-        dev = "cpu"
+    dev = get_dev(args)
 
     train_dataloader, test_dataloader = get_dataloaders(
         args.dataset_location,
@@ -48,6 +51,8 @@ def main(args):
                 save_dir=save_dir,
                 pose=model_config.config[args.model][1],
                 nosave=args.nosave)
+
+    
 
 
 if __name__ == "__main__":

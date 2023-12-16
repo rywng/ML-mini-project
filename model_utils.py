@@ -3,6 +3,7 @@ import os
 import torch
 from torch import nn
 import torch.optim as optim
+from torch.serialization import INT_SIZE
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from torchvision import models
@@ -21,7 +22,13 @@ def train_model(model,
                 nosave=False) -> nn.Module:
 
     train_dataloader, test_dataloader = dataloaders
+
+    if torch.cuda.device_count() > 1:
+        print("Using", torch.cuda.device_count(), "GPUs")
+        model = nn.DataParallel(model)
+
     model = model.to(dev)
+
     sample_input, sample_target = next(iter(test_dataloader))
 
     # Define the loss function
@@ -43,6 +50,7 @@ def train_model(model,
 
     # Fit model on training data
     with tqdm(range(epochs)) as pbar:
+        min_loss = 100000
         for epoch in range(epochs):
             model.train()
 
@@ -79,17 +87,20 @@ def train_model(model,
                 "predictions vs. actuals",
                 plot_classes_preds(model, sample_input, sample_target),
                 epoch + 1)
-            running_loss = 0.0
 
-            if not nosave and epoch % 3 == 2:
-                torch.save(model.state_dict(),
-                           os.path.join(save_dir, f"{epoch}.pt"))
+            if not nosave:
+                if eval_loss < min_loss:
+                    torch.save(model.state_dict(), os.path.join(save_dir, "best.pt"))
+                if epoch % 3 == 2:
+                    torch.save(model.state_dict(),
+                               os.path.join(save_dir, f"{epoch}.pt"))
 
             scheduler.step()
             pbar.update()
             pbar.set_postfix(epoch=epoch,
                              loss=f"{average_loss:.4f}",
                              lr=optimizer.param_groups[0]["lr"])
+            running_loss = 0.0
 
     return model
 
