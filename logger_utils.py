@@ -1,12 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy as np
 from sklearn import metrics
 import torch
 from torch import nn
+import torch
 from torch.functional import Tensor
 from torch.utils.data import DataLoader
 
 FIGSIZE = (12, 12)
+CUSTOM_FORMAT_STR = "{:.3f}"
 
 
 def matplotlib_imshow(img, one_channel=False):
@@ -45,7 +48,9 @@ def plot_classes_preds(net, images, labels):
                              xticks=[],
                              yticks=[])
         matplotlib_imshow(images[idx], one_channel=False)
-        ax.set_title(f"{prob}%, {label}%\n")
+        ax.set_title(
+            f"{CUSTOM_FORMAT_STR.format(prob)}%, {CUSTOM_FORMAT_STR.format(label)}%\n"
+        )
     return fig
 
 
@@ -62,8 +67,7 @@ def plot_random_batch(train_dataloader: DataLoader,
     for i in np.arange(batch_size):
         ax = fig.add_subplot(8, batch_size // 8, i + 1, xticks=[], yticks=[])
         matplotlib_imshow(image_samples[i])
-        if not pose:
-            ax.set_title(str(int(label_samples[i])))
+        ax.set_title(CUSTOM_FORMAT_STR.format(float(label_samples[i])))
     return fig
 
 
@@ -133,6 +137,29 @@ def extract_dataloader(dataloader: DataLoader):
         y_test.append(batch_y_test)
     x_test = torch.cat(x_test)
     y_test = torch.cat(y_test)
-    x_test, y_test = next(iter(dataloader))
     y_test = y_test.detach().numpy()
     return x_test, y_test
+
+
+def plot_head_pose(test_dataloader: DataLoader, model=None, print=True):
+    size = 12
+    x_test, y_test = extract_dataloader(test_dataloader)
+    pred = None
+    if model:
+        pred = model(x_test)
+    fig = plt.figure(figsize=FIGSIZE)
+    for i in range(min(len(x_test), size)):
+        ax = fig.add_subplot(4, size // 4, i + 1, xticks=[], yticks=[])
+        matplotlib_imshow(x_test[i])
+        if model and pred is not None:
+            ax.set_title(
+                f"{CUSTOM_FORMAT_STR.format(y_test[i][0])} <-> {CUSTOM_FORMAT_STR.format(pred[i][0])} | {CUSTOM_FORMAT_STR.format(y_test[i][1])} <-> {CUSTOM_FORMAT_STR.format(pred[i][1])} | {CUSTOM_FORMAT_STR.format(y_test[i][2])} <-> {CUSTOM_FORMAT_STR.format(pred[i][2])}"
+            )
+        else:
+            ax.set_title(
+                f"{CUSTOM_FORMAT_STR.format(y_test[i][0])}, {CUSTOM_FORMAT_STR.format(y_test[i][1])}, {CUSTOM_FORMAT_STR.format(y_test[i][2])}"
+            )
+    if print:
+        plt.show()
+    else:
+        return fig

@@ -6,7 +6,7 @@ import torch
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from cuda_utils import get_least_used_gpu
-from logger_utils import plot_random_batch
+from logger_utils import plot_head_pose, plot_random_batch
 from model_utils import model_config, train_model
 from preprocessing import get_dataloaders
 
@@ -37,7 +37,10 @@ def main(args):
 
     writer = SummaryWriter('runs/face-smile')
 
-    writer.add_figure("One batch",
+    if model_config.config[args.model][1]:
+        writer.add_figure("One batch", plot_head_pose(train_dataloader, print=False))
+    else:
+        writer.add_figure("One batch",
                       plot_random_batch(train_dataloader, BATCH_SIZE))
 
     net = model_config.config[args.model][0]
