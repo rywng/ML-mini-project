@@ -3,15 +3,16 @@ import argparse
 from sklearn import os
 import torch
 
-from face import get_dev
-from logger_utils import plot_roc_graph
+from logger_utils import plot_pr_graph, plot_roc_graph
 from model_utils import model_config
 from preprocessing import get_dataloaders
 
 
 def main(args):
-    _, test_dataloader = get_dataloaders(args.dataset_location, "cpu",
-                                         photometric_only=model_config.config[args.model][1])
+    _, test_dataloader = get_dataloaders(
+        args.dataset_location,
+        "cpu",
+        photometric_only=model_config.config[args.model][1])
     net = model_config.config[args.model][0]
 
     try:
@@ -21,7 +22,8 @@ def main(args):
     except FileNotFoundError:
         print("The file is not present")
         exit(1)
-    plot_roc_graph(net, test_dataloader, print=True)
+    plot_roc_graph(net, test_dataloader, stdout=True)
+    plot_pr_graph(net, test_dataloader, stdout=True)
 
 
 if __name__ == "__main__":

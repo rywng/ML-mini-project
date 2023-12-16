@@ -67,18 +67,11 @@ def plot_random_batch(train_dataloader: DataLoader,
     return fig
 
 
-def plot_roc_graph(model: nn.Module, test_dataloader: DataLoader, print=True):
+def plot_roc_graph(model: nn.Module, test_dataloader: DataLoader, stdout=True):
     model.eval()
-    x_test = []
-    y_test = []
-    for batch in test_dataloader:
-        batch_x_test, batch_y_test = batch
-        x_test.append(batch_x_test)
-        y_test.append(batch_y_test)
-    x_test = torch.cat(x_test)
-    y_test = torch.cat(y_test)
-    x_test, y_test = next(iter(test_dataloader))
-    y_test = y_test.detach().numpy()
+
+    x_test, y_test = extract_dataloader(test_dataloader)
+
     pred = model(x_test).detach().numpy()
     fpr, tpr, _ = metrics.roc_curve(y_test, pred)
     roc_auc = metrics.roc_auc_score(y_test, pred)
@@ -86,8 +79,43 @@ def plot_roc_graph(model: nn.Module, test_dataloader: DataLoader, print=True):
                                       tpr=tpr,
                                       roc_auc=roc_auc,
                                       estimator_name="Smiling cliassification")
-    if print:
+    if stdout:
         display.plot()
         plt.show()
     else:
         return display.figure_
+
+
+def plot_pr_graph(model: nn.Module, test_dataloader: DataLoader, stdout=True):
+    model.eval()
+
+    x_test, y_test = extract_dataloader(test_dataloader)
+
+    pred = model(x_test)
+    pred = pred.detach().numpy()
+
+    pred = pred[:, 0]
+    y_test = y_test[:, 0]
+
+    display = metrics.PrecisionRecallDisplay.from_predictions(
+        y_test, pred)
+
+    if stdout:
+        display.plot()
+        plt.show()
+    else:
+        return display.figure_
+
+
+def extract_dataloader(dataloader: DataLoader):
+    x_test = []
+    y_test = []
+    for batch in dataloader:
+        batch_x_test, batch_y_test = batch
+        x_test.append(batch_x_test)
+        y_test.append(batch_y_test)
+    x_test = torch.cat(x_test)
+    y_test = torch.cat(y_test)
+    x_test, y_test = next(iter(dataloader))
+    y_test = y_test.detach().numpy()
+    return x_test, y_test
