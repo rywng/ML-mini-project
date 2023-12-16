@@ -7,18 +7,12 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from cuda_utils import get_least_used_gpu
 
 from logger_utils import plot_random_batch
-from model_utils import SmilingClassifier, resnet50, train_model
+from model_utils import train_model, model_config
 from preprocessing import get_dataloaders
 
 TEST_SIZE = 0.3
 # Don't change this!
 BATCH_SIZE = 64
-
-config = {
-    "resnet50-face-smile": [resnet50.get_resnet_smile(), False],
-    "simple-face-smile": [SmilingClassifier(), False],
-    "resnet50-position": [resnet50.get_resnet_pos(), True],
-}
 
 
 def main(args):
@@ -34,14 +28,16 @@ def main(args):
         dev = "cpu"
 
     train_dataloader, test_dataloader = get_dataloaders(
-        args.dataset_location, dev, photometric_only=config[args.model][1])
+        args.dataset_location,
+        dev,
+        photometric_only=model_config.config[args.model][1])
 
     writer = SummaryWriter('runs/face-smile')
 
     writer.add_figure("One batch",
                       plot_random_batch(train_dataloader, BATCH_SIZE))
 
-    net = config[args.model][0]
+    net = model_config.config[args.model][0]
 
     save_dir = os.path.join(os.path.dirname(__file__), "runs", args.model)
 
@@ -50,7 +46,7 @@ def main(args):
                 dev,
                 writer,
                 save_dir=save_dir,
-                pose=config[args.model][1],
+                pose=model_config.config[args.model][1],
                 nosave=args.nosave)
 
 
@@ -61,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument("-m",
                         "--model",
                         default="resnet50-face-smile",
-                        choices=config.keys())
+                        choices=model_config.config.keys())
     parser.add_argument("-e", "--epochs", default="50")
     parser.add_argument("--no-cuda",
                         action="store_true",

@@ -1,6 +1,5 @@
 import os
 
-import numpy as np
 import torch
 from torch import nn
 import torch.optim as optim
@@ -64,8 +63,10 @@ def train_model(model,
 
             average_loss = running_loss / len(train_dataloader)
             # TODO: this code is shit
-            eval_loss, eval_accuracy = eval_model(model, test_dataloader,
-                                                  criterion, pose=pose)
+            eval_loss, eval_accuracy = eval_model(model,
+                                                  test_dataloader,
+                                                  criterion,
+                                                  pose=pose)
             writer.add_scalars("loss", {
                 "Train": average_loss,
                 "Eval": eval_loss,
@@ -161,3 +162,11 @@ class resnet50():
             nn.Linear(1000, 3),
         )
         return net
+
+
+class model_config():
+    config = {
+        "resnet50-face-smile": [resnet50.get_resnet_smile(), False],
+        "simple-face-smile": [SmilingClassifier(), False],
+        "resnet50-position": [resnet50.get_resnet_pos(), True],
+    }
