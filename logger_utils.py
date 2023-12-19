@@ -49,7 +49,7 @@ def plot_classes_preds(net, images, labels):
                              yticks=[])
         matplotlib_imshow(images[idx], one_channel=False)
         ax.set_title(
-            f"{CUSTOM_FORMAT_STR.format(prob)}%, {CUSTOM_FORMAT_STR.format(label)}%\n"
+            f"{prob}%, {label}%\n"
         )
     return fig
 
