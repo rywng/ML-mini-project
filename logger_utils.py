@@ -153,7 +153,7 @@ def plot_head_pose(test_dataloader: DataLoader, model=None, print=True):
         matplotlib_imshow(x_test[i])
         if model and pred is not None:
             ax.set_title(
-                f"{CUSTOM_FORMAT_STR.format(y_test[i][0])} <-> {CUSTOM_FORMAT_STR.format(pred[i][0])} | {CUSTOM_FORMAT_STR.format(y_test[i][1])} <-> {CUSTOM_FORMAT_STR.format(pred[i][1])} | {CUSTOM_FORMAT_STR.format(y_test[i][2])} <-> {CUSTOM_FORMAT_STR.format(pred[i][2])}"
+                f"{CUSTOM_FORMAT_STR.format(y_test[i][0])} <> {CUSTOM_FORMAT_STR.format(pred[i][0])} \n {CUSTOM_FORMAT_STR.format(y_test[i][1])} <> {CUSTOM_FORMAT_STR.format(pred[i][1])} \n {CUSTOM_FORMAT_STR.format(y_test[i][2])} <> {CUSTOM_FORMAT_STR.format(pred[i][2])}"
             )
         else:
             ax.set_title(
