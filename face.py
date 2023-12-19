@@ -15,7 +15,7 @@ TEST_SIZE = 0.3
 BATCH_SIZE = 64
 
 def get_dev(args) -> str:
-    if torch.cuda.is_available() and args.nocuda == False:
+    if torch.cuda.is_available() and not args.nocuda:
         return get_least_used_gpu()
     else:
         return "cpu"

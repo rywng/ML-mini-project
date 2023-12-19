@@ -1,6 +1,5 @@
 .venv
 .envrc
-*.ipynb
 notebooks/
 genki4k/
 __pycache__/

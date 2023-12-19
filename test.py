@@ -44,6 +44,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Test the model with user-specified input")
     parser.add_argument("dataset_location")
+    parser.add_argument("--no-cuda", action="store_true", dest="nocuda")
     parser.add_argument("-m",
                         "--model",
                         default="resnet50-face-smile",
