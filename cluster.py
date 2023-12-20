@@ -16,7 +16,7 @@ from cuda_utils import get_least_used_gpu
 from model_utils import resnet50
 from preprocessing import load_data
 
-PCA_REDUCED = 50
+PCA_REDUCED = 80
 TSNE_REDUCED = 2
 BATCH_SIZE = 64
 
@@ -28,7 +28,7 @@ def plot_cluster(X,
                  ground_truth=False,
                  ax=None):
     if ax is None:
-        _, ax = plt.subplots(figsize=(10, 4))
+        _, ax = plt.subplots(aspect="equal")
     labels = labels if labels is not None else np.ones(X.shape[0])
     probabilities = probabilities if probabilities is not None else np.ones(
         X.shape[0])
@@ -90,18 +90,26 @@ def get_pca(embeddings: np.ndarray, show=True) -> np.ndarray:
     return fitted
 
 
-def get_tsne(embeddings: np.ndarray, show=True) -> np.ndarray:
+def get_tsne(embeddings: np.ndarray, show=True, tsne_reduced=TSNE_REDUCED) -> np.ndarray:
     # TSNE for more accurate reduction and visualization
-    tsne = TSNE(n_components=TSNE_REDUCED)
+    tsne = TSNE(n_components=tsne_reduced)
     fitted = tsne.fit_transform(embeddings)
 
     if show:
         fig = plt.figure(2)
-        ax = fig.add_subplot()
-        ax.scatter(fitted[:, 0], fitted[:, 1])
-        ax.set_title("TSNE visualization")
-        ax.set_xlabel("1st Eigenvector")
-        ax.set_ylabel("2st Eigenvector")
+        if tsne_reduced == 2:
+            ax = fig.add_subplot()
+            ax.scatter(fitted[:, 0], fitted[:, 1])
+            ax.set_title("TSNE 2d visualization")
+            ax.set_xlabel("1st Eigenvector")
+            ax.set_ylabel("2st Eigenvector")
+        elif tsne_reduced == 3:
+            ax = fig.add_subplot(projection="3d")
+            ax.scatter(fitted[:, 0], fitted[:, 1], fitted[:, 2])
+            ax.set_title("TSNE 3d visualization")
+            ax.set_xlabel("1st Eigenvector")
+            ax.set_ylabel("2st Eigenvector")
+            ax.set_zlabel("3st Eigenvector")
         plt.show()
 
     return fitted
@@ -110,6 +118,7 @@ def get_tsne(embeddings: np.ndarray, show=True) -> np.ndarray:
 def hdbscan(embeddings: np.ndarray, show=True):
     hdb = HDBSCAN()
     fitted = hdb.fit(embeddings)
+    print(f"Labels: {fitted.labels_}, len: {len(fitted.labels_)}")
     if show:
         plot_cluster(embeddings, fitted.labels_, fitted.probabilities_)
         plt.show()
@@ -144,6 +153,7 @@ def hdbscan(embeddings: np.ndarray, show=True):
         )
         hdb = HDBSCAN()
         hdb.fit(embeddings)
+        # Hierarchical clustering
         fig, axes = plt.subplots(len(PARAM), 1, figsize=(10, 12))
         for i, param in enumerate(PARAM):
             labels = hdb.dbscan_clustering(**param)
@@ -218,7 +228,10 @@ def main(arg: argparse.Namespace):
     # Extract embeddings
     image_loader = DataLoader(TensorDataset(images, zeros(len(images))),
                               batch_size=BATCH_SIZE)
+
+    # Model construction
     model = resnet50.get_resnet_feature(pretrained=True).to(dev)
+
     embeddings = []
 
     with tqdm(total=len(image_loader)) as pbar:
@@ -233,7 +246,8 @@ def main(arg: argparse.Namespace):
     pca = get_pca(embeddings, show=False)
 
     # plot TSNE
-    tsne = get_tsne(pca, show=False)
+    tsne = get_tsne(pca, show=show, tsne_reduced=3)
+    tsne = get_tsne(pca, show=show)
 
     dbscan(tsne, show=show)
     dbscan(tsne, eps=2, show=show)

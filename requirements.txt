@@ -1,8 +1,8 @@
+matplotlib
 opencv-python
 scikit-learn
-torch
-torchvision
-torchaudio
-tqdm
-matplotlib
 tensorboard
+torch
+torchaudio
+torchvision
+tqdm

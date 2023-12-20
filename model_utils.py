@@ -1,9 +1,7 @@
 import os
-from typing import Tuple
 
 import torch
 from torch import nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -171,7 +169,7 @@ class resnet50():
             nn.Linear(1000, 3),
         )
         return net
-    
+
     @classmethod
     def get_resnet_feature(cls, pretrained=True):
         net = cls.get_resnet_base(pretrained)
