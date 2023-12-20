@@ -1,9 +1,10 @@
 import os
+from typing import Tuple
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 import torch.optim as optim
-from torch.serialization import INT_SIZE
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from torchvision import models
@@ -86,7 +87,8 @@ def train_model(model,
 
             if not nosave:
                 if eval_loss < min_loss:
-                    torch.save(model.state_dict(), os.path.join(save_dir, "best.pt"))
+                    torch.save(model.state_dict(),
+                               os.path.join(save_dir, "best.pt"))
                 if epoch % 3 == 2:
                     torch.save(model.state_dict(),
                                os.path.join(save_dir, f"{epoch}.pt"))
@@ -168,6 +170,12 @@ class resnet50():
             net,
             nn.Linear(1000, 3),
         )
+        return net
+    
+    @classmethod
+    def get_resnet_feature(cls, pretrained=True):
+        net = cls.get_resnet_base(pretrained)
+        net.fc = nn.Identity()
         return net
 
 
