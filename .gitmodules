@@ -1,6 +1,0 @@
-[submodule "SeCu"]
-	path = SeCu
-	url = https://github.com/idstcv/SeCu.git
-[submodule "scatsimclr"]
-	path = scatsimclr
-	url = git@github.com:JuanCldCmt/scatsimclr.git
