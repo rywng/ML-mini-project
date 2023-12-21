@@ -53,15 +53,13 @@ def plot_cluster(X,
 
         class_index = np.where(labels == k)[0]
         for ci in class_index:
-            ax.plot(
-                X[ci, 0],
-                X[ci, 1],
-                "x" if k == -1 else "o",
-                markerfacecolor=tuple(col),
-                markeredgecolor="k",
-                markersize=4 if k == -1 else 1 + 5 * proba_map[ci],
-                alpha=0.3 if k == -1 else 0.7
-            )
+            ax.plot(X[ci, 0],
+                    X[ci, 1],
+                    "x" if k == -1 else "o",
+                    markerfacecolor=tuple(col),
+                    markeredgecolor="k",
+                    markersize=4 if k == -1 else 1 + 5 * proba_map[ci],
+                    alpha=0.3 if k == -1 else 0.7)
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     preamble = "True" if ground_truth else "Estimated"
     title = f"{preamble} number of clusters: {n_clusters_}"
@@ -104,6 +102,7 @@ def get_tsne(embeddings: np.ndarray,
     fitted = tsne.fit_transform(embeddings)
 
     if show:
+        # Plot TSNE
         fig = plt.figure(2)
         if tsne_reduced == 2:
             ax = fig.add_subplot()
@@ -131,17 +130,23 @@ def get_hdbscan(embeddings: np.ndarray, show=True):
         plot_cluster(embeddings, fitted.labels_, fitted.probabilities_)
         plt.show()
 
+        # Show hierarchy
         hdb.condensed_tree_.plot()
         plt.show()
 
-        sns.distplot(hdb.outlier_scores_[np.isfinite(hdb.outlier_scores_)],
-                     rug=True).set(title="Outlier detection")
+        # Outlier
+        sns.histplot(hdb.outlier_scores_[np.isfinite(hdb.outlier_scores_)],
+                     kde=True, stat="density").set(title="Outlier detection")
         plt.show()
 
         threshold = pd.Series(hdb.outlier_scores_).quantile(0.9)
         outliers = np.where(hdb.outlier_scores_ > threshold)[0]
         plt.scatter(*embeddings.T, s=50, linewidth=0, c='gray', alpha=0.25)
-        plt.scatter(*embeddings[outliers].T, s=50, linewidth=0, c='red', alpha=0.5)
+        plt.scatter(*embeddings[outliers].T,
+                    s=50,
+                    linewidth=0,
+                    c='red',
+                    alpha=0.5)
         plt.show()
 
         # scale robustness
@@ -154,6 +159,7 @@ def get_hdbscan(embeddings: np.ndarray, show=True):
                          ax=axes[idx])
         plt.show()
 
+        # Multi-level hierarchy
         hdb = HDBSCAN()
         PARAM = (
             {
@@ -194,6 +200,7 @@ def dbscan(embeddings: np.ndarray, show=True, eps=None):
         eps_range = [eps]
 
     for eps in eps_range:
+        # For every eps, cluster them
         db = DBSCAN(eps=eps)
         fitted = db.fit(embeddings)
         labels = fitted.labels_
@@ -237,6 +244,7 @@ def dbscan(embeddings: np.ndarray, show=True, eps=None):
 def main(arg: argparse.Namespace):
     show = False if args.noshow else True
     try:
+        # Load embeddings from cache to avoid re-computing the same values
         embeddings = np.load("cache.npy")
         print("Loaded embeddings from cache")
     except Exception:
@@ -269,26 +277,29 @@ def main(arg: argparse.Namespace):
         np.save("cache", embeddings)
 
     # plot pca
-    pca = get_pca(embeddings, show=False)
+    pca = get_pca(embeddings, show=show)
 
     # plot TSNE
-    # _ = get_tsne(pca, show=show, tsne_reduced=3)
+    _ = get_tsne(pca, show=show, tsne_reduced=3)
     tsne = get_tsne(pca, show=show)
 
     print(f"After TSNE: {tsne.shape}")
 
-    # dbscan(tsne, show=show)
-    # dbscan(tsne, eps=2, show=show)
-    # dbscan(tsne, eps=3, show=show)
+    # Show different DBSCAN visualization
+    dbscan(tsne, show=show)
+    dbscan(tsne, eps=2, show=show)
+    dbscan(tsne, eps=3, show=show)
 
+    # Show HDBSCAN visualization
     get_hdbscan(tsne, show=show)
 
+    # Fit test data on the trained model
     train = tsne[round(len(tsne) * TEST_RATIO):]
     test = tsne[:round(len(tsne) * TEST_RATIO)]
 
     hdb = HDBSCAN(min_cluster_size=25).fit(train)
 
-    fig, axes = plt.subplots(2, 1)
+    _, axes = plt.subplots(2, 1)
 
     axes[0].set_title(
         f"The result of training, {len(set(hdb.labels_))} labels")
@@ -299,9 +310,12 @@ def main(arg: argparse.Namespace):
     ]
     axes[0].scatter(train.T[0], train.T[1], c=colors, alpha=0.6)
 
-    # plot new
+    # plot test data on the training dataset
     hdb.generate_prediction_data()
-    test_labels, _ = hdbscan.approximate_predict(hdb, test)
+    test_labels, probs = hdbscan.approximate_predict(hdb, test)
+    print(f"Probabilities: {probs}")
+    sns.histplot(probs, kde=True, stat="density").set_title("Distribution of probabilities")
+    plt.show()
 
     colors = [
         sns.desaturate(pal[col], sat)
