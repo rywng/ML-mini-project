@@ -1,8 +1,9 @@
-.venv
 .envrc
-notebooks/
-genki4k/
-__pycache__/
+.venv
 /Session.vim
-datasets/
 /runs
+__pycache__/
+cache.npy
+datasets/
+genki4k/
+notebooks/

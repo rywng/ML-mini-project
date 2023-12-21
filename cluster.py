@@ -2,6 +2,7 @@
 
 import argparse
 
+import pandas as pd
 import hdbscan
 from hdbscan import HDBSCAN
 import seaborn as sns
@@ -59,6 +60,7 @@ def plot_cluster(X,
                 markerfacecolor=tuple(col),
                 markeredgecolor="k",
                 markersize=4 if k == -1 else 1 + 5 * proba_map[ci],
+                alpha=0.3 if k == -1 else 0.7
             )
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     preamble = "True" if ground_truth else "Estimated"
@@ -122,11 +124,24 @@ def get_tsne(embeddings: np.ndarray,
 
 
 def get_hdbscan(embeddings: np.ndarray, show=True):
-    hdb = HDBSCAN(min_cluster_size=10)
+    hdb = HDBSCAN(min_cluster_size=25)
     fitted = hdb.fit(embeddings)
     print(f"Labels: {fitted.labels_}, len: {len(fitted.labels_)}")
     if show:
         plot_cluster(embeddings, fitted.labels_, fitted.probabilities_)
+        plt.show()
+
+        hdb.condensed_tree_.plot()
+        plt.show()
+
+        sns.distplot(hdb.outlier_scores_[np.isfinite(hdb.outlier_scores_)],
+                     rug=True).set(title="Outlier detection")
+        plt.show()
+
+        threshold = pd.Series(hdb.outlier_scores_).quantile(0.9)
+        outliers = np.where(hdb.outlier_scores_ > threshold)[0]
+        plt.scatter(*embeddings.T, s=50, linewidth=0, c='gray', alpha=0.25)
+        plt.scatter(*embeddings[outliers].T, s=50, linewidth=0, c='red', alpha=0.5)
         plt.show()
 
         # scale robustness
@@ -139,6 +154,7 @@ def get_hdbscan(embeddings: np.ndarray, show=True):
                          ax=axes[idx])
         plt.show()
 
+        hdb = HDBSCAN()
         PARAM = (
             {
                 "cut_distance": 0.5
@@ -219,32 +235,38 @@ def dbscan(embeddings: np.ndarray, show=True, eps=None):
 
 
 def main(arg: argparse.Namespace):
-    print(arg)
-    dev = get_least_used_gpu()
-    print(f"Using cuda device: {dev}")
     show = False if args.noshow else True
+    try:
+        embeddings = np.load("cache.npy")
+        print("Loaded embeddings from cache")
+    except Exception:
+        print(arg)
+        dev = get_least_used_gpu()
+        print(f"Using cuda device: {dev}")
 
-    images, _ = load_data(arg.dataset_dir)
+        images, _ = load_data(arg.dataset_dir)
 
-    # Convert from list
-    images = torch.stack(images).float().to(dev)
+        # Convert from list
+        images = torch.stack(images).float().to(dev)
 
-    # Extract embeddings
-    image_loader = DataLoader(TensorDataset(images, zeros(len(images))),
-                              batch_size=BATCH_SIZE)
+        # Extract embeddings
+        image_loader = DataLoader(TensorDataset(images, zeros(len(images))),
+                                  batch_size=BATCH_SIZE)
 
-    # Model construction
-    model = resnet50.get_resnet_feature(pretrained=True).to(dev)
+        # Model construction
+        model = resnet50.get_resnet_feature(pretrained=True).to(dev)
 
-    embeddings = []
+        embeddings = []
 
-    with tqdm(total=len(image_loader)) as pbar:
-        for image, _ in image_loader:
-            pbar.update()
-            out = model(image).detach().cpu()
-            embeddings += out
-    embeddings = torch.stack(embeddings).cpu().detach().numpy()
-    print(f"embeddings: {embeddings.shape}")
+        with tqdm(total=len(image_loader)) as pbar:
+            for image, _ in image_loader:
+                pbar.update()
+                out = model(image).detach().cpu()
+                embeddings += out
+        embeddings = torch.stack(embeddings).cpu().detach().numpy()
+        print(f"embeddings: {embeddings.shape}")
+
+        np.save("cache", embeddings)
 
     # plot pca
     pca = get_pca(embeddings, show=False)
@@ -264,7 +286,7 @@ def main(arg: argparse.Namespace):
     train = tsne[round(len(tsne) * TEST_RATIO):]
     test = tsne[:round(len(tsne) * TEST_RATIO)]
 
-    hdb = HDBSCAN(min_cluster_size=10).fit(train)
+    hdb = HDBSCAN(min_cluster_size=25).fit(train)
 
     fig, axes = plt.subplots(2, 1)
 
@@ -275,7 +297,7 @@ def main(arg: argparse.Namespace):
         sns.desaturate(pal[col], sat)
         for col, sat in zip(hdb.labels_, hdb.probabilities_)
     ]
-    axes[0].scatter(train.T[0], train.T[1], c=colors)
+    axes[0].scatter(train.T[0], train.T[1], c=colors, alpha=0.6)
 
     # plot new
     hdb.generate_prediction_data()
@@ -289,7 +311,7 @@ def main(arg: argparse.Namespace):
         pal[col] if col >= 0 else (0.1, 0.1, 0.1) for col in test_labels
     ]
     axes[1].set_title("Added test points")
-    axes[1].scatter(train.T[0], train.T[1], c=colors)
+    axes[1].scatter(train.T[0], train.T[1], c=colors, alpha=0.5)
     axes[1].scatter(*test.T, c=test_colors, s=80, linewidths=1, edgecolors='k')
     plt.show()
 
