@@ -2,12 +2,12 @@
 
 import argparse
 
-import pandas as pd
 import hdbscan
 from hdbscan import HDBSCAN
-import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 from sklearn.cluster import DBSCAN
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from cuda_utils import get_least_used_gpu
+from logger_utils import matplotlib_imshow
 from model_utils import resnet50
 from preprocessing import load_data
 
@@ -24,6 +25,15 @@ PCA_REDUCED = 80
 TSNE_REDUCED = 2
 BATCH_SIZE = 64
 TEST_RATIO = 0.01
+
+
+def plot_random_batch(images_indexes: list, images):
+    fig = plt.figure()
+    batch_size = len(images_indexes)
+    for i in images_indexes:
+        ax = fig.add_subplot(8, batch_size // 8, i + 1, xticks=[], yticks=[])
+        matplotlib_imshow(images[i])
+    plt.show()
 
 
 def plot_cluster(X,
@@ -136,7 +146,8 @@ def get_hdbscan(embeddings: np.ndarray, show=True):
 
         # Outlier
         sns.histplot(hdb.outlier_scores_[np.isfinite(hdb.outlier_scores_)],
-                     kde=True, stat="density").set(title="Outlier detection")
+                     kde=True,
+                     stat="density").set(title="Outlier detection")
         plt.show()
 
         threshold = pd.Series(hdb.outlier_scores_).quantile(0.9)
@@ -314,9 +325,6 @@ def main(arg: argparse.Namespace):
     hdb.generate_prediction_data()
     test_labels, probs = hdbscan.approximate_predict(hdb, test)
     print(f"Probabilities: {probs}")
-    sns.histplot(probs, kde=True, stat="density").set_title("Distribution of probabilities")
-    plt.show()
-
     colors = [
         sns.desaturate(pal[col], sat)
         for col, sat in zip(hdb.labels_, hdb.probabilities_)
@@ -327,6 +335,10 @@ def main(arg: argparse.Namespace):
     axes[1].set_title("Added test points")
     axes[1].scatter(train.T[0], train.T[1], c=colors, alpha=0.5)
     axes[1].scatter(*test.T, c=test_colors, s=80, linewidths=1, edgecolors='k')
+    plt.show()
+
+    sns.histplot(probs, kde=True,
+                 stat="density").set_title("Distribution of probabilities")
     plt.show()
 
 
