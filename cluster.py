@@ -2,9 +2,12 @@
 
 import argparse
 
+import hdbscan
+from hdbscan import HDBSCAN
+import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.cluster import DBSCAN, HDBSCAN
+from sklearn.cluster import DBSCAN
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import torch
@@ -19,6 +22,7 @@ from preprocessing import load_data
 PCA_REDUCED = 80
 TSNE_REDUCED = 2
 BATCH_SIZE = 64
+TEST_RATIO = 0.01
 
 
 def plot_cluster(X,
@@ -28,14 +32,14 @@ def plot_cluster(X,
                  ground_truth=False,
                  ax=None):
     if ax is None:
-        _, ax = plt.subplots(aspect="equal")
+        _, ax = plt.subplots()
     labels = labels if labels is not None else np.ones(X.shape[0])
     probabilities = probabilities if probabilities is not None else np.ones(
         X.shape[0])
     # Black removed and is used for noise instead.
     unique_labels = set(labels)
     colors = [
-        plt.get_cmap("RdYlGn")(each)
+        sns.color_palette("Spectral", as_cmap=True)(each)
         for each in np.linspace(0, 1, len(unique_labels))
     ]
     # The probability of a point belonging to its labeled cluster determines
@@ -90,7 +94,9 @@ def get_pca(embeddings: np.ndarray, show=True) -> np.ndarray:
     return fitted
 
 
-def get_tsne(embeddings: np.ndarray, show=True, tsne_reduced=TSNE_REDUCED) -> np.ndarray:
+def get_tsne(embeddings: np.ndarray,
+             show=True,
+             tsne_reduced=TSNE_REDUCED) -> np.ndarray:
     # TSNE for more accurate reduction and visualization
     tsne = TSNE(n_components=tsne_reduced)
     fitted = tsne.fit_transform(embeddings)
@@ -115,8 +121,8 @@ def get_tsne(embeddings: np.ndarray, show=True, tsne_reduced=TSNE_REDUCED) -> np
     return fitted
 
 
-def hdbscan(embeddings: np.ndarray, show=True):
-    hdb = HDBSCAN()
+def get_hdbscan(embeddings: np.ndarray, show=True):
+    hdb = HDBSCAN(min_cluster_size=10)
     fitted = hdb.fit(embeddings)
     print(f"Labels: {fitted.labels_}, len: {len(fitted.labels_)}")
     if show:
@@ -124,7 +130,6 @@ def hdbscan(embeddings: np.ndarray, show=True):
         plt.show()
 
         # scale robustness
-        hdb = HDBSCAN()
         fig, axes = plt.subplots(3, 1)
         for idx, scale in enumerate([1, 1.25, 1.5]):
             hdb.fit(embeddings * scale)
@@ -151,7 +156,6 @@ def hdbscan(embeddings: np.ndarray, show=True):
                 "cut_distance": 2.5
             },
         )
-        hdb = HDBSCAN()
         hdb.fit(embeddings)
         # Hierarchical clustering
         fig, axes = plt.subplots(len(PARAM), 1, figsize=(10, 12))
@@ -246,14 +250,48 @@ def main(arg: argparse.Namespace):
     pca = get_pca(embeddings, show=False)
 
     # plot TSNE
-    tsne = get_tsne(pca, show=show, tsne_reduced=3)
+    # _ = get_tsne(pca, show=show, tsne_reduced=3)
     tsne = get_tsne(pca, show=show)
 
-    dbscan(tsne, show=show)
-    dbscan(tsne, eps=2, show=show)
-    dbscan(tsne, eps=3, show=show)
+    print(f"After TSNE: {tsne.shape}")
 
-    hdbscan(tsne, show=show)
+    # dbscan(tsne, show=show)
+    # dbscan(tsne, eps=2, show=show)
+    # dbscan(tsne, eps=3, show=show)
+
+    get_hdbscan(tsne, show=show)
+
+    train = tsne[round(len(tsne) * TEST_RATIO):]
+    test = tsne[:round(len(tsne) * TEST_RATIO)]
+
+    hdb = HDBSCAN(min_cluster_size=10).fit(train)
+
+    fig, axes = plt.subplots(2, 1)
+
+    axes[0].set_title(
+        f"The result of training, {len(set(hdb.labels_))} labels")
+    pal = sns.color_palette('deep', len(set(hdb.labels_)))
+    colors = [
+        sns.desaturate(pal[col], sat)
+        for col, sat in zip(hdb.labels_, hdb.probabilities_)
+    ]
+    axes[0].scatter(train.T[0], train.T[1], c=colors)
+
+    # plot new
+    hdb.generate_prediction_data()
+    test_labels, _ = hdbscan.approximate_predict(hdb, test)
+
+    colors = [
+        sns.desaturate(pal[col], sat)
+        for col, sat in zip(hdb.labels_, hdb.probabilities_)
+    ]
+    test_colors = [
+        pal[col] if col >= 0 else (0.1, 0.1, 0.1) for col in test_labels
+    ]
+    axes[1].set_title("Added test points")
+    axes[1].scatter(train.T[0], train.T[1], c=colors)
+    axes[1].scatter(*test.T, c=test_colors, s=80, linewidths=1, edgecolors='k')
+    plt.show()
 
 
 if __name__ == "__main__":

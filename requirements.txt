@@ -1,6 +1,8 @@
+hdbscan
 matplotlib
 opencv-python
 scikit-learn
+seaborn
 tensorboard
 torch
 torchaudio
